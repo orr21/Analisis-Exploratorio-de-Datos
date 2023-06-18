@@ -1,0 +1,954 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{=html}
+<style>
+body {
+text-align: justify;
+font-size: 12pt;
+line-height: 200%}
+</style>
+```
+<hr>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(echo = FALSE)
+knitr::opts_knit$set(root.dir = "./datasets")
+options(knitr.kable.NA = '')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+library(ggridges)
+library(viridis)
+library(gsubfn)
+library(knitr)
+library(zoo)
+library(gridExtra)
+```
+
+```{=latex}
+\begin{titlepage}
+\centering
+{\bfseries\LARGE Universidad de Las Palmas de Gran Canaria\par}
+\vspace{1cm}
+{\scshape\Large Facultad de Ingenier\'ia Inform\'atica \par}
+\vspace{3cm}
+{\scshape\Huge Trabajar con ggplot2 y dplyr: \\$CO_2$ en aulas \par}
+\vspace{4cm}
+\vfill
+{\Large Autores: \par}
+{\Large Ricardo C\'ardenes \par}
+{\Large \'Oscar Rico \par}
+\vfill
+{\Large Marzo 2023 \par}
+\end{titlepage}
+```
+\newpage
+
+### FASE 0: Obtención y manipulación de los datos
+
+<hr>
+
+```{r echo=FALSE}
+lee_co2 <- function (filename) {
+ df <- read.table(filename, header = T, sep = "\t", dec = ",", fileEncoding = "LATIN1")
+ df$Aula <- paste("Aula",strapplyc(filename, "\\d\\W\\d", simplify = TRUE))
+ return(df)
+}
+```
+
+```{r echo=FALSE}
+files <- list.files(pattern="\\.txt$")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Recogemos los datos de todas las aulas
+colnames = c(Temperatura = "Temperatura..ºC.", Humedad = "Humedad.Relativa....", CO2 = "CO2.ppm")
+jaulas <- purrr::map(files,lee_co2) %>% 
+  lapply(function(df) {
+    df %>%
+      rename(all_of(colnames)) %>%
+      mutate(Humedad = sub(',', '\\.', Humedad)) %>%
+      mutate(Humedad = as.numeric(Humedad))
+    }) %>%
+  bind_rows()
+```
+
+En un análisis exploratorio de datos, el primer paso es recopilar los
+datos necesarios. Una vez obtenidos los datos, es importante llevar a
+cabo una exploración inicial para determinar sus características más
+relevantes, como el tipo de variables, la cantidad de datos disponibles,
+las unidades de medida utilizadas, entre otros.
+
+En particular, en el caso de variables numéricas, resulta crucial
+analizar las medidas de centralidad, como la media, la mediana y la
+moda, ya que proporcionan información importante acerca de la tendencia
+central de los datos. Esta información puede ser de gran utilidad para
+entender mejor la distribución de los datos y para detectar posibles
+valores atípicos o extremos que puedan afectar el análisis posterior.
+
+En resumen, la exploración inicial de los datos es una etapa fundamental
+en cualquier análisis de datos, y requiere prestar atención a múltiples
+aspectos para garantizar una comprensión completa y rigurosa de los
+datos disponibles.
+
+```{r echo=FALSE}
+# Buscamos la existencia de NAs
+kable(summary(jaulas))
+```
+
+Tras una primera inspección de los datos, podemos observar que se trata
+de un conjunto de datos considerable, con un total de 1.081.728 filas.
+Sin embargo, se ha identificado que existen algunas inconsistencias en
+los datos.
+
+En particular, se ha detectado que los valores mínimos de las variables
+de *Humedad* y *Temperatura* no parecen tener sentido, lo que sugiere
+que podrían ser valores atípicos o erróneos. Además, se ha constatado
+que faltan tres valores en la variable *CO2*.
+
+Es importante tener en cuenta estas inconsistencias y tomar medidas para
+abordarlas adecuadamente antes de proceder con el análisis de los datos.
+Esto podría incluir la eliminación de los valores atípicos, la
+imputación de los valores faltantes, o cualquier otra técnica de
+limpieza de datos necesaria para garantizar la calidad y fiabilidad de
+los resultados del análisis.
+
+```{r echo=FALSE}
+# Entre los datos a simple vista pudimos encontrar 3 valores faltas de CO_2 y a lo largo del proyecto, encontramos que faltaban 2 fechas también
+kable(jaulas %>%
+  filter(is.na(CO2) | Fecha == ""))
+```
+
+Hemos identificado que en el conjunto de datos hay tres valores
+faltantes para la variable *CO2*, así como dos para la variable *Fecha*.
+Tras evaluar cada caso individualmente, hemos tomado la decisión de
+descartar las filas sin fecha debido a la falta de información que
+presentan.
+
+Sin embargo, hemos decidido recuperar los datos correspondientes al
+08/03/22 y el 11/09/22. Para ello, hemos calculado la media entre el
+valor previo y posterior, ya que los intervalos entre los valores no
+superan los seis minutos. Consideramos que esta estrategia es adecuada
+ya que nos proporciona una aproximación bastante precisa de los valores
+faltantes.
+
+Además, hemos decidido descartar una de la fila correspondiente al
+12/04/22 debido a que los valores de *Temperatura* y *Humedad* parecen
+sugerir un posible fallo en el sensor. Al eliminar esta fila, evitamos
+posibles distorsiones en nuestro análisis y nos aseguramos de trabajar
+con datos fiables y representativos.
+
+```{r echo=FALSE}
+# Asignamos valor a los NA con Temperatura y Humedad razonables aplicando la media entre su valor anterior y posterior
+jaulas <- jaulas %>%
+  mutate(CO2 = na.approx(CO2))
+```
+
+```{r echo=FALSE}
+# Eliminamos valor que no tiene sentido (sensor posiblemente roto)
+jaulas <- jaulas %>%
+  filter(!(Aula == "Aula 2-5" & Fecha == "12/04/22" & Hora == "09:35:53"))
+```
+
+```{r echo=FALSE}
+# Eliminamos valores sin Fecha
+jaulas <- jaulas %>%
+  filter(Fecha != "")
+```
+
+```{r echo=FALSE}
+kable(summary(jaulas))
+```
+
+Después de aplicar las técnicas de imputación y eliminación de valores
+faltantes correspondientes, se ha logrado obtener un conjunto de datos
+limpio y completo. Como resultado, todas las variables numéricas
+presentan valores razonables y no se observa la presencia de valores
+faltantes en el conjunto de datos.
+
+En consecuencia, se considera que el conjunto de datos está listo para
+ser utilizado en el análisis exploratorio y visualización de los datos.
+A partir de este punto, podremos llevar a cabo un análisis más detallado
+de las características de los datos y extraer información valiosa que
+nos permita tomar decisiones informadas.
+
+\newpage
+
+### FASE 1: Visualizar los datos de $CO_2$ de un aula
+
+<hr>
+
+En la primera fase del análisis exploratorio de datos, hemos decidido
+enfocarnos en una aula en particular del conjunto de datos,
+concretamente el Aula 1-1. Al hacer esta selección, nos permitimos tener
+un enfoque más detallado y específico en el análisis de los datos de
+esta aula, lo que nos ayudará a obtener información valiosa y relevante
+para nuestros objetivos de análisis.
+
+```{r echo=FALSE}
+# Recogemos los datos de una única aula
+A11 <- filter(jaulas, Aula == "Aula 1-1")
+```
+
+```{r echo=FALSE}
+kable(summary(A11))
+```
+
+Una vez obtenidos los datos correspondientes al Aula 1-1, es crucial
+realizar una observación detallada del comportamiento de sus variables.
+Al analizar la tabla correspondiente, se puede apreciar que el cojunto
+de datos está compuesto por 89898 muestras y no se visualiza ninguna
+inconsistencia en los datos.
+
+En consecuencia, podemos afirmar que los datos parecen estar en orden y
+libres de cualquier tipo de problema o error. Esta observación inicial
+nos permite tener una primera impresión sobre la calidad de los datos y
+nos brinda una base sólida para comenzar con un análisis más detallado
+en la siguiente fase del análisis exploratorio de datos.
+
+```{r echo=FALSE, fig.align='center', fig.height=4, fig.width=6, message=FALSE}
+A11 %>% 
+  mutate(Hora = hour(hms(Hora))) %>%
+  ggplot() +
+  aes(Hora,CO2, color=CO2) +
+  geom_jitter() +
+  scale_y_continuous(expand=c(0,0,0.05,0), breaks=seq(400,1350,150)) +
+  scale_x_continuous(expand=c(0,0), breaks=seq(0,23,1)) +
+  scale_color_gradient2(low="#FFFF00", mid = "#FF8000", 
+                        high="#FF0000", midpoint= 700) +
+  theme_minimal() +
+  labs(
+    title = expression(CO[2]*" según hora del día"),
+    subtitle = "Para el aula 1-1",
+    x = "Hora del día",
+    y = expression(CO[2]*" (ppm)")) + 
+  theme(
+    plot.title=element_text(size=14, face='bold', hjust = 0.5),
+    plot.subtitle = element_text(size=12, hjust = 0.5)
+  )
+```
+
+En primer lugar, hemos realizado un análisis del comportamiento del
+$CO_2$ en función de la hora del día en el Aula 1-1. Al observar la
+gráfica correspondiente, podemos apreciar que los niveles de $CO_2$
+permanecen bajos hasta que a las 8:30 comienzan a crecer, lo cual es
+comprensible ya que esta es la hora en la que suelen comenzar las
+clases. Posteriormente, el $CO_2$ alcanza su máximo alrededor de las
+11:30, para luego comenzar a descender a partir de las 13:00.
+
+A pesar de ello, los niveles de $CO_2$ en la aula parecen mantenerse en
+niveles medios en las horas de la tarde, lo que podría sugerir que la
+aula es utilizada también en ese horario, aunque con un número menor de
+alumnos. No es hasta las 19:30 que comienzan a disminuir
+significativamente para alcanzar valores por debajo de 500 a las 21:30.
+
+En conclusión, podemos decir que el análisis del comportamiento del
+$CO_2$ en función de la hora del día nos permite obtener información
+valiosa sobre el uso y ocupación del Aula 1-1. Este análisis nos brinda
+una idea general de los horarios en los que se produce un mayor uso de
+la aula y nos permite identificar posibles momentos en los que podrían
+ser necesarias acciones para mejorar la calidad del aire.
+
+```{r echo=FALSE, fig.align='center', fig.height=4, fig.width=6, warning=FALSE}
+o_dias = c('lunes', 'martes', 'miércoles', 'jueves','viernes')
+A11 %>% 
+  mutate(Dia = wday(dmy(Fecha),week_start = 1)) %>%
+  filter(wday(dmy(Fecha),week_start = 1) %in% c(1,2,3,4,5)) %>%
+  ggplot() +
+    aes(x=factor(Dia, labels = o_dias), y=CO2, color = Dia, fill = Dia) +
+    geom_violin(size=1.2,alpha = 0.1) +
+    scale_y_continuous(expand=c(0.02,0.02), breaks=seq(400,1300,150)) +
+    scale_color_viridis_c(option = "turbo") +
+    scale_fill_viridis_c(option = "turbo") +
+    theme_minimal() +
+    theme(
+      legend.position="none",
+      plot.title=element_text(size=14, face='bold', hjust = 0.5),
+      plot.subtitle = element_text(size=12, hjust = 0.5)
+    ) +
+    labs(
+      title = expression(CO[2]*" según días lectivos de la semana"),
+      subtitle = "Para el aula 1-1",
+      x = "",
+      y = expression(CO[2]*" (ppm)")
+    )
+```
+
+En otro análisis relevante, decidimos estudiar el comportamiento del
+$CO_2$ en función del día de la semana en días lectivos, específicamente
+en el Aula 1-1. Al observar la gráfica correspondiente, podemos notar
+que esta aula no es muy utilizada a lo largo de la semana, ya que sus
+valores se mantienen en valores medios alrededor de 420 ppm. Parece ser
+que el día que más uso se le da es el miércoles, aunque no podemos
+asegurarlo con certeza debido a la variabilidad de los valores. Sin
+embargo, cabe destacar el máximo valor registrado el lunes, que superó
+los 1350 ppm, el cual es el único momento donde la calidad del aire en
+el aula puede ser considerada mala.
+
+```{r include=FALSE}
+# Añadimos la variable estación para realizar nuestro análisis
+A11 = A11 %>%
+  mutate(Estacion = case_when(
+    month(dmy(Fecha)) %in% c(4,5,6) ~ "Primavera",
+    month(dmy(Fecha)) %in% c(7,8,9) ~ "Verano",
+    month(dmy(Fecha)) %in% c(10,11,12) ~ "Otoño",
+    month(dmy(Fecha)) %in% c(1,2,3) ~ "Invierno"
+  ))
+kable(summary(A11))
+```
+
+```{r echo=FALSE, fig.align='center', fig.height=4, fig.width=7}
+o_mes_a = c('ene.', 'feb.', 'mar.', 'abr.','may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.','nov.', 'dic.')
+o_estacion = c('Invierno', 'Primavera','Verano','Otoño')
+A11 %>% 
+  mutate(Mes = month(dmy(Fecha))) %>%
+  ggplot() + 
+  aes(factor(Mes, labels = o_mes_a),CO2,fill = factor(Estacion, level= o_estacion)) +
+  theme_minimal() +
+  geom_bar(stat= "identity") + 
+  scale_fill_manual(name = "Estación", values=c("#0C7BDC","#40B0A6","#DC3220","#E1BE6A")) +
+  scale_y_continuous(expand=c(0,0,0.01,0),
+                     labels = function(x) format(x, scientific = FALSE),
+                     breaks=seq(0,3500000,500000)) + 
+  labs(title = expression("Nivel de "*CO[2]*" total a lo largo del año"),
+       subtitle = "Para el aula 1-1",
+       x = "",
+       y = expression(CO[2]*" (ppm)")) + 
+  theme(
+    plot.title=element_text(size=14, face='bold', hjust = 0.5),
+    plot.subtitle = element_text(size=12, hjust = 0.5))
+```
+
+Como último análisis de esta fase, llevamos a cabo un estudio del
+comportamiento del $CO_2$ a lo largo del año en el Aula 1-1. En un
+principio, consideramos que un diagrama de barras sería una buena
+herramienta para identificar diferencias a lo largo del tiempo, además
+de agregar un factor enriquecedor como la estación del año. Sin embargo,
+al observar la gráfica, notamos un patrón inusual: los niveles de $CO_2$
+en octubre son inferiores a los de agosto, a pesar de que en este último
+mes, durante el pleno verano y sin clases, los niveles deberían ser
+bajos. Además, agosto figura como el cuarto mes con mayor nivel de
+$CO_2$, lo cual es aún más desconcertante.
+
+Esto despertó nuestra curiosidad y decidimos realizar un análisis más
+exhaustivo. Finalmente, identificamos lo que creemos que puede ser la
+causa del problema. Descubrimos que el número de muestras tomadas en
+agosto es mucho mayor que en otros meses, como se puede apreciar en la
+tabla a continuación:
+
+```{r echo = FALSE, fig.align='center'}
+kable(t(A11 %>%
+  group_by(Mes = factor(month(dmy(Fecha)), labels = o_mes_a)) %>%
+  summarise(Freq = n(),Total_co2 = sum(CO2))))
+```
+
+Al percatarnos de este inconveniente, optamos por cambiar el enfoque de
+nuestro análisis y dejar de lado la variable de estaciones por el
+momento.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.align='center', fig.height=4, fig.width=6}
+A11 %>% 
+  mutate(Mes = month(dmy(Fecha))) %>%
+  ggplot() + 
+  aes(Mes,CO2) +
+  geom_smooth(color = "red") + 
+  scale_y_continuous(expand=c(0.1,0,0.1,0), breaks=seq(410,430,2.5)) + 
+  scale_x_continuous(expand=c(0,0,0,0), labels = o_mes_a, breaks=seq(1,12,1)) + 
+  labs(title = expression("Nivel medio de "*CO[2]*" a lo largo del año") ,
+       subtitle = "Para el aula 1-1",
+       x = "",
+       y = expression(CO[2]*" (ppm)")) + 
+  theme(
+    plot.title=element_text(size=14, face='bold', hjust = 0.5),
+    plot.subtitle = element_text(size=12, hjust = 0.5))
+```
+
+En lugar de utilizar un diagrama de barras, optamos por un geom_smooth,
+donde en vez de analizar los niveles totales de $CO_2$ en cada mes, lo
+analizamos a través de sus medias. Este enfoque resulta más preciso, ya
+que en los meses en los que no hay clases los niveles de $CO_2$ en el
+aula son más bajos, lo cual se refleja claramente en la gráfica. Se
+pueden observar las vacaciones de Navidad, así como los días sin clases
+en junio para prepararse para los exámenes.
+
+En conclusión, aprendimos que antes de utilizar diagramas de barras es
+importante considerar el número de muestras disponibles para cada mes,
+ya que si la cantidad es inestable pueden presentarse casos como los
+mencionados anteriormente. En los cuales, es mejor trabajar con medidas
+de centralidad para lograr un análisis más preciso.
+
+\newpage
+
+### FASE 2: Agrupar y resumir los datos
+
+<hr>
+
+Lo normal en todo proyecto de análisis exploratorio es contar con una
+cantidad ingente de información. En nuestro caso, tenemos un dataset de
+baja dimensionalidad, con apenas 6 variables, y con poco más de un
+millón de registros. En el peor de los casos, una gráfica que muestre
+una cantidad importante de la información de nuestro conjunto de datos
+demora unos cuantos segundos en ser generada. No obstante, supongamos
+que queremos generar estas mismas gráficas una vez pasados 10 años. Nos
+podría interesar, por ejemplo, estudiar la evolución de la tasa de
+abandono en los grados que imparte la escuela a medida que avanzan los
+años. Esto es un problema, y es que, en el mejor de los casos, el coste
+algorítmico de generar cada gráfica es lineal, pues al menos hay que
+evaluar cada uno de los registros del dataset una vez para poder
+graficarlos.
+
+Para agilizar en gran medida esta tarea, contamos con técnicas de
+resumen y agrupación de datos, proporcionadas, entre otras, por la
+librería dplyr. Según Wikipedia, dplyr es uno de los paquetes
+principales de tidyverse en el lenguaje de programación R, y se trata
+principalmente un conjunto de funciones diseñadas para permitir la
+manipulación de marcos de datos de una manera intuitiva y fácil de usar.
+Las funciones que nos aporta para conseguir nuestro objetivo son, como
+ya se menciona en el guion de la práctica, group_by y summarise.
+
+Por una parte, group_by se encarga de agruparnos los datos de una o más
+variables para aplicar transformaciones con la función mutate, de esta
+misma librería, en otras columnas. Esta transformación se hará por
+separado para aquellos registros cuyos valores de las variables
+agrupadas coincidan. Para ello, se crea una nueva columna independiente
+con el nombre que se le asigne al ejecutar group_by, o se le asigna uno
+por omisión. Un ejemplo sería el que presentamos en la siguiente
+gráfica, que nos muestra la evolución del nivel máximo de $CO_2$ por
+semanas, a medida que avanza el año 2022.
+
+```{r, fig.align='center', fig.width=6.5, fig.height=4}
+o_mes_a = c('ene.', 'feb.', 'mar.', 'abr.','may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.','nov.', 'dic.')
+
+plot1 = jaulas %>% 
+  filter(Aula == "Aula 3-4") %>%
+  mutate(Fecha = dmy(Fecha)) %>%
+  mutate(week = cut(Fecha, breaks = "1 week")) %>%
+  group_by(week) %>%
+  summarise(MaxCO2 = max(CO2)) %>%
+  mutate(week = ymd(week)) %>%
+  filter(year(week) == 2022) %>%
+   
+  ggplot(aes(x=Fecha,  y=MaxCO2)) +
+  geom_bar(aes(x=week), stat="identity", fill="skyblue") + 
+  scale_y_continuous(expand=c(0,0,0.1,0),n.breaks=7) +
+  scale_x_date(expand=c(0.01,0,0.01,0),date_breaks = "1 month", date_labels = "%b") + 
+  labs(title = expression("Nivel máximo de "*CO[2]*" por semana 2022"),
+       subtitle = "Para el aula 3-4",
+       x = "",
+       y = expression(CO[2]*" (ppm)")) +
+  theme(
+    plot.title=element_text(size=14, face='bold', color='darkblue', hjust = 0.5),
+    plot.subtitle = element_text(size=12, hjust = 0.5))
+
+plot1
+```
+
+La mayoría de las gráficas, cosa que nos quedará clara del todo en la
+fase 3, nos informan de una clara bajada de estudiantes del primer al
+segundo cuatrimestre, debido una relación causal existe entre los
+niveles de $CO_2$ en las aulas y el número de estudiantes en las mismas.
+
+Hemos conseguido reducir notablemente el tiempo de cómputo de estas
+gráficas. Sin embargo, no estamos siendo del todo eficientes. Resulta
+que al aplicar transformaciones a variables de esta manera, se conserva
+en el DataFrame resultante todos los registros. Esto es, pese a que solo
+nos interese conocer el valor de la transformación de cada grupo, pues
+para todos los elementos del mismo grupo la transformación tomará el
+mismo valor, se repite tantas veces como elementos tenga el grupo el
+resultado de dicha transformación. Esto supone un problema tanto de
+tiempo como de ocupación de memoria. Para resolver este problema, existe
+la función summarise.
+
+Como su propio nombre indica, summarise se encarga de resumir los datos,
+y su funcionamiento es muy parecido al de mutate. Supongamos que
+queremos obtener un gráfico de cómo varían los niveles máximo de dióxido
+de carbono por día. Esto es, nos interesa realizar una caracterización o
+agrupación en los datos por día. Para ello, aplicamos group_by en base a
+esta misma variable. Hecho esto, procedemos con nuestra transformación
+de la variable que rige el nivel de $CO_2$, con el nombre CO2 en
+nuestros datos, esta vez utilizando summarise, indicándole la
+transformación que queremos realizar y el nombre de la variable o
+variables que participan en la misma. En nuestro caso, la variable es
+CO2 y la aplicación es la que, para un grupo concreto, devuelve el
+máximo valor de la misma. Si a continuación mostramos el gráfico que nos
+interese para representar el problema, obtenemos el siguiente gráfico en
+un tiempo de ejecución bastante razonable.
+
+```{r,fig.align='center',fig.width=6, fig.height=4}
+plot2 = jaulas %>% 
+  filter(Aula == "Aula 3-4") %>%
+  mutate(Fecha = dmy(Fecha)) %>%
+  group_by(Fecha) %>%
+  summarise(MaxCO2 = max(CO2)) %>%
+  ggplot() +
+  geom_smooth(aes(x=Fecha, MaxCO2)) + 
+  scale_y_continuous(n.breaks=7) +
+  scale_x_date(expand=c(0,0,0.005,0),date_breaks = "1 month", date_labels = "%b") +
+  labs(title = expression("Nivel máximo de "*CO[2]*" por fechas"),
+       subtitle = "Para el aula 3-4",
+       x = "",
+       y = expression(CO[2]*" (ppm)")) +
+  theme(plot.title=element_text(size=14, face='bold', color='darkblue', hjust = 0.5),
+        plot.subtitle = element_text(size=12, hjust = 0.5))
+
+plot2
+```
+
+El gráfico utilizado es el geom_smooth, y es uno de los más robustos
+frente a outliers o valores raros. Si comparamos ambas gráficas, podemos
+apreciar una similitud notable entre ambas, pues tienen una forma
+aparentemente igual, solo que una de ellas se aplica de forma continua.
+
+```{r,fig.align='center',fig.width=12, fig.height=6}
+grid.arrange(plot1, plot2, ncol=2)
+```
+
+Si las vemos de forma conjunta, en ambas gráficas somos capaces de
+apreciar la diferencia en cuando a número de estudiantes en las
+distintas épocas del año y, más concretamente, en los distintos
+cuatrimestres.Otros casos en los que nos podría ser útil la agrupación y
+el resumen de datos es cuando queremos realizar un análisis por
+estaciones, obteniendo gráficas interesantes como pueden ser la
+siguiente.
+
+```{r, fig.align='center', fig.width=5.5, fig.height=3.5}
+A11 = A11 %>%
+  mutate(Estacion = case_when(
+    month(dmy(Fecha)) %in% c(4,5,6) ~ "Primavera",
+    month(dmy(Fecha)) %in% c(7,8,9) ~ "Verano",
+    month(dmy(Fecha)) %in% c(10,11,12) ~ "Otoño",
+    month(dmy(Fecha)) %in% c(1,2,3) ~ "Invierno"
+  ))
+
+A11 %>%  
+  group_by(Estacion)  %>%
+  summarise(Mean_Co2 = mean(CO2)) %>%
+  ggplot() +
+  aes(Estacion, Mean_Co2, fill = Estacion) +
+  geom_segment(aes(x=Estacion, xend=Estacion, y=410, yend=Mean_Co2), 
+               color="grey") +
+  geom_point( color="orange", size=4) +
+  scale_y_continuous(expand=c(0,0,0.1,0),breaks=seq(410,425,4)) +
+  theme_light() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = "none"
+  ) +
+  labs(
+    title = expression(CO[2]*" medio según la estación del año"),
+    subtitle = "Para el aula 1-1",
+    x = "",
+    y = expression(CO[2]*" (ppm)")
+  ) +
+  theme(
+    plot.title=element_text(size=14, face='bold', hjust = 0.5),
+    plot.subtitle = element_text(size=12, hjust = 0.5)
+  )
+```
+
+Obteniendo que otoño, estación donde comienza el primer cuatrimestre, es
+en la que la facultad está más concurrida. Podría ser también
+interesante un análisis por días de la semana. Como el siguiente:
+
+```{r, fig.align='center', fig.width=6, fig.height=4}
+o_dias = c('lunes', 'martes', 'miércoles', 'jueves','viernes', 'sábado', 'domingo')
+A11 %>% 
+  mutate(Dia = wday(dmy(Fecha),week_start = 1)) %>%
+  group_by(Dia) %>%
+  summarise(media_CO2 = mean(CO2), sd = sd(CO2)) %>%
+  ggplot() +
+    aes(x=factor(Dia), y=media_CO2, fill = Dia) +
+    geom_bar(stat='identity') +
+    geom_errorbar(aes(ymin=media_CO2-sd, ymax=media_CO2+sd), width=0.4, colour
+    ="black", alpha=0.9, size=1.3) +
+    theme_gray() +
+    theme(
+      legend.position="none"
+    ) +
+  scale_y_continuous(expand=c(0,0,0.1,0),breaks=seq(0,460,65)) +
+  scale_x_discrete(expand=c(0.1,0,0.1,0), labels = o_dias, breaks=seq(1,7,1)) + 
+  scale_fill_viridis_c(option = "plasma", direction = -1) +
+  labs(
+    title = expression(CO[2]*" medio según día de la semana"),
+    subtitle = "Para el aula 1-1",
+    x = "",
+    y = expression(CO[2]*" (ppm)")
+  ) +
+  theme(
+    plot.title=element_text(size=14, face='bold', hjust = 0.5),
+    plot.subtitle = element_text(size=12, hjust = 0.5)
+  )
+```
+
+Donde no apreciamos notables diferencias, por lo que los horarios están
+distribuidos de forma uniforme en la semana, o eso aparentan. En esta
+última gráfica, además, podemos apreciar el error en función de la
+desviación típica de los datos. A menor desviación, más acotados estarán
+los datos entorno a la media.
+
+\newpage
+
+### FASE 3: Combinar los datos de todas las aulas
+
+<hr>
+
+Podría ser interesante en nuestro estudio del nivel de $CO_2$ en la
+Escuela de Ingeniería Informática llevar a cabo una caracterización por
+aulas. Esto es, visualizar de forma independiente los datos de cada aula
+por separado, pudiéndonos hacer así una idea de la afluencia que tiene
+cada una de ella y ver qué partes de la escuela quedan más o menos
+vacías a lo largo del curso. De esta forma, la escuela podría tomar
+decisiones y, por ejemplo, llevar acabo una distribución más homogénea
+de los alumnos en las distintas aulas para obtener una mayor calidad de
+enseñanza.
+
+Un buen indicativo para realizar este análisis podría ser el nivel medio
+de $CO_2$ registrado en las aulas. No obstante, hemos de saber primero
+cual ha de ser la variable independiente que se adecúe más a nuestro
+objetivo. Si tomásemos, por ejemplo, la variable *Fecha*, y más
+concretamente el mes de la misma como variable independiente, obtenemos
+un gráfico que nos muestra el nivel medio de $CO_2$ en función del
+desarrollo del curso académico 2022.
+
+```{r echo=FALSE}
+data = aggregate(CO2 ~ Aula + month(dmy(Fecha)), jaulas, FUN = max)
+data_mean = aggregate(CO2 ~ Aula + month(dmy(Fecha)), jaulas, FUN = mean)
+colnames(data) = c("Aula", "Month", "MaxCO2")
+colnames(data_mean) = c("Aula", "Month", "MeanCO2")
+```
+
+```{r echo=FALSE, fig.align='center', fig.height=4, fig.width=6, message=FALSE, warning=FALSE, paged.print=FALSE}
+data_mean %>%
+  ggplot(aes(x=as.factor(Month), y=Aula, fill=MeanCO2)) +
+  geom_tile(aes(width=0.9, height=0.8), size=2) +
+  scale_y_discrete(limits=rev) +
+  scale_x_discrete(breaks=1:12,
+        labels=c("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")) +
+  scale_fill_gradient2(low="white", mid="orange", high="red", midpoint=445) +
+  labs(title="Nivel máximo de CO2 por mes",
+       subtitle="en cada aula",
+       x="",
+       y="") +
+  theme(plot.title=element_text(size=20, face='bold', hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.spacing = unit(1, "lines"),
+        panel.spacing.x = unit(1, "lines"),
+        panel.background = element_rect(fill = "white", colour = "white"),
+        strip.background = element_blank(),
+        axis.text.x=element_text(angle=60, hjust = 1))
+```
+
+Si observamos el gráfico, podemos apreciar como existe un mayor de nivel
+de dióxido de carbono medio a comienzos del curso académico, esto es, el
+primer semestre. Mientras, el segundo semestre presenta niveles más
+bajos, lo cual implica una reducción del número de alumnos en este
+periodo. De esta forma tan sencilla, con tan solo visualizar el gráfico
+de la cantidad en promedio de una molécula del aire en las aulas, hemos
+sido capaces de realizar inferencias de un problema significativo de la
+facultad, pues esta bajada de alumnos podría estar directamente
+relacionada con la tasa de abandono de los grados que oferta.
+
+Otra opción para este mismo propósito, que nos ofrezca una información
+aún más radical, sería la representación de máximos de $CO_2$ en vez de
+sus medias, obteniendo la siguiente representación.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, fig.align='center', fig.height=4, fig.width=6}
+data %>%
+  ggplot(aes(x=as.factor(Month), y=Aula, fill=MaxCO2)) +
+  geom_tile(aes(width=0.9, height=0.8), size=2) +
+  scale_x_discrete(breaks=1:7,
+        labels=c("L", "M", "X", "J", "V", "S", "D")) +
+  scale_y_discrete(limits=rev) +
+   scale_x_discrete(breaks=1:12,
+        labels=c("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")) +
+  scale_fill_gradient2(low="white", mid="orange", high="red", midpoint=1250) +
+  labs(title="Nivel máximo de CO2 por mes",
+       subtitle="en cada aula",
+       x="",
+       y="") +
+  theme(plot.title=element_text(size=20, face='bold', hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.spacing = unit(1, "lines"),
+        panel.spacing.x = unit(1, "lines"),
+        panel.background = element_rect(fill = "white", colour = "white"),
+        strip.background = element_blank(),
+        axis.text.x=element_text(angle=60, hjust = 1))
+```
+
+Sin embargo, hemos de tener algo en cuenta: el nivel máximo de $CO_2$
+difiere bastante de niveles en los que las aulas se encuentran
+totalmente vacías. Como ya sabemos, la media es una medida de
+centralización muy sensible a valores altos u outliers. Por tanto,
+teniendo en cuenta ambos factores, es lógico que la primera gráfica se
+aproxime en forma a la segunda, pues los valores representados en esta
+última condicionan muy significativamente a los de la primera.
+
+Como hemos visto, los mapas de calor son una representación muy
+intuitiva que podría entender cualquier persona sin formación previa en
+el campo de la Ciencia de Datos. No obstante, no es la mejor opción a
+utilizar si lo que queremos es transmitir la información de forma
+precisa. Si tomamos como ejemplo cualquiera de las dos gráficas, existen
+casos en los que la diferencias de color entre cuadros adyacentes es
+inapreciable. Esto no se debe a limitaciones en la librería 'ggplot2',
+sino al propio ojo humano. Según numerosos estudios, el ojo humano no es
+capaz de distinguir con precisión a partir de un número máximo de
+colores y, pese a que existan ligeras diferencias en función del
+individuo, nos interesa que cualquier persona que observe nuestra
+gráfica sea capaz de entenderla. Para ayudarnos en esta tarea contamos
+con distintos tipos de gráfica que, pese a representar menos cantidad de
+datos, la que representan lo hace de forma más precisa. Un ejemplo de
+esto es el bar plot o, en español, diagrama de barras.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, fig.align='center', fig.height=3.5, fig.width=6}
+data = aggregate(CO2 ~ Aula, jaulas, FUN = max)
+
+data %>%
+  ggplot(aes(x=Aula, y=CO2, fill=Aula)) +
+  scale_fill_viridis(discrete = TRUE) +
+  geom_bar(stat="identity") +
+  labs(title="Nivel máximo de CO2 por aula",
+       subtitle="Para todos los meses",
+       x="",
+       y="") +
+  theme(plot.title=element_text(size=14, face='bold', color='darkblue', hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.spacing = unit(1, "lines"),
+        axis.text=element_text(angle=0, vjust=0, hjust=0),
+        panel.background = element_rect(fill = "white", colour = "white"),
+        legend.position = "none",
+        axis.text.x = element_text(angle=90, vjust=0.4, hjust=0.6))
+```
+
+El gráfico que acabamos de introducir muestra, para cada aula, el nivel
+máximo de $CO_2$ presentado en cada una de ellas. Pese a que no podemos
+conocer con exactitud el valor exacto de cada aula, cosa que podríamos
+suavizar añadiendo puntos al eje vertical, si es posible distinguir el
+nivel de cada aula respecto a las otras, cosa que no siempre era posible
+en las primeras gráficas presentadas. Ahora bien, cuando sólo nos
+interesa ver esta diferencia, pero no conocer el valor real de las
+medidas, podemos representarla en coordenadas polares, donde obtenemos
+la siguiente visualización.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, fig.align='center', fig.height=4, fig.width=5}
+data %>%
+  ggplot(aes(x=Aula, y=CO2, fill=Aula)) +
+  scale_fill_viridis(discrete = TRUE) +
+  geom_bar(stat="identity") +
+  coord_polar() +
+  labs(title="Nivel máximo de CO2 por aula",
+       subtitle="Independientemente del mes",
+       x="",
+       y="") +
+  theme(plot.title=element_text(size=14, face='bold', color='darkblue', hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.spacing = unit(1, "lines"),
+        axis.text=element_text(angle=0, vjust=0, hjust=0),
+        panel.background = element_rect(fill = "white", colour = "white"),
+        legend.position = "none",
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+```
+
+Pese a que se pueda añadir un sistema de coordenadas a esta
+representación, en la mayoría de los casos no se hace intuitivo. Incluso
+si la persona que analiza el gráfico está familiarizada con las
+coordenadas polares, si no posee un ojo entrenado en este tipo de
+gráficos tardará un tiempo en comprender su contenido.
+
+Por último, presentamos un tipo de gráfica que representa con la mayor
+precisión posible la información de la que disponemos. En esta gráfica,
+se mostrará no solo el valor máximo de todas y cada una de las aulas,
+sino que se hará una distinción por meses para cada una de ellas.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, fig.align='center',fig.height=5.5, fig.width=7}
+o_mes = c('enero', 'febrero', 'marzo', 'abril','mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre','noviembre', 'diciembre')
+jaulas %>%
+  group_by(Mes = months.Date(as.Date(jaulas$Fecha)),Aula) %>%
+  summarise(MaxCO2 = max(CO2)) %>%
+  ggplot() +
+  aes(x=factor(Mes, levels = o_mes), y=MaxCO2, group=Aula, color=Aula) +
+  geom_line() +
+  scale_x_discrete(expand=c(0,0)) +
+  facet_wrap(~Aula, scales="fixed", ncol=4) +
+  labs(title=expression(CO[2]*" máximo por meses para cada aula"),
+       x="",
+       y="") +
+  theme(plot.title=element_text(size=16, face='bold', color='darkblue', hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.spacing = unit(1, "lines"),
+        axis.text.x=element_text(angle=90, vjust=0),
+        legend.position = "none")
+```
+
+Sea cual sea nuestro dataset, existe una gran cantidad de gráficas que
+podemos utilizar para representar nuestra información. Sin embargo, para
+nuestro caso, no existe gráfica más precisa que esta última que no se
+corresponda con una visualización tabular (o en forma de tabla) de los
+datos. Si quisiéramos, sería incluso posible recrear gran parte de
+nuestro dataset a partir de la misma, a mayor o menor nivel de
+precisión, pero de una manera muy aproximada.
+
+La siguiente gráfica, ya recomendada en el guion de la práctica, es la
+que se presenta a continuación, y gracias a ella nos podemos hacer una
+idea de las horarios en los que la facultad se encuentra con un mayor
+número de estudiantes.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, fig.align='center',fig.height=6, fig.width=7}
+jaulas %>%
+  group_by(Hora = hour(hms(jaulas$Hora)),Aula) %>%
+  summarise(MaxCO2 = max(CO2)) %>%
+  ggplot() +
+  aes(x=factor(Hora), y=MaxCO2, group=Aula, color=Aula) +
+  geom_line() +
+  scale_x_discrete(expand=c(0,0), breaks=c(0,8,12,15,18,21), labels=c(0, 8, 12,15,18,21)) +
+  facet_wrap(~Aula, scales="fixed", ncol=4) +
+  labs(title=expression("Nivel de "*CO[2]*" máximo por horas"),
+       subtitle="en cada aula",
+       x="",
+       y="") +
+  theme(plot.title=element_text(size=16, face='bold', color='darkblue', hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.spacing = unit(1, "lines"),
+        axis.text.x=element_text(angle=90, vjust=0),
+        legend.position = "none")
+```
+
+Podría ser útil si la facultad tuviera la intención de establecer un
+nuevo turno de tarde y no supiera muy bien de que manera distribuirlo.
+
+\newpage
+
+### RETO 1: Mapa de calor
+
+<hr>
+
+Con los gráficos ya aportados tenemos las herramientas suficientes para
+llevar a cabo un proceso del análisis de los datos en condiciones de las
+diversas aulas y sus niveles de $CO_2$. La escuela, con estas
+conclusiones, sería capaz de tomar desiciones respecto a su organización
+en los distintos planes de enseñanza, y tomar medidas para palear el
+abandono por parte de estudiantes en los grados. No obstante, existe
+muchas gráficas posibles que no hemos hecho, las cuales nos pueden
+aportar otro tipo de información a la hora de tomar desiciones de otra
+índole. Un buen ejemplo sería el del mapa de calor que, por aula, nos
+informe de los niveles de $CO_2$ en función del día de la semana y la
+hora dentro del mismo.
+
+```{r echo=FALSE, fig.align='center', fig.height=11, fig.width= 11, message=FALSE, warning=FALSE, dpi= 300}
+jaulas %>%
+  filter(hour(hms(Hora)) >= 8 & hour(hms(Hora)) <= 20) %>%
+  group_by(Hora = hour(hms(Hora)),
+           Fecha = wday(dmy(Fecha), week_start = 1), Aula) %>%
+  summarise(MaxCO2 = max(CO2)) %>%
+  ggplot() +
+    aes(x=as.factor(Fecha), y=as.factor(Hora), fill=MaxCO2) +
+    geom_tile(aes(width=0.9, height=0.9), size=2) +
+    scale_x_discrete(breaks=1:7, labels=c("L", "M", "X", "J", "V", "S", "D")) +
+    scale_y_discrete(limits=rev) +
+    scale_fill_gradient(low="#FFC471", high="#FF3636") +
+    facet_wrap(~Aula, scales="fixed", ncol=4) +
+    labs(title=expression(CO[2]*" por horas y días de la semana"),
+         subtitle="Horas de 8:00 a 20:00",
+         x="",
+         y="",
+         fill = expression(CO[2]*" (ppm)")) +
+    theme(
+      plot.title=element_text(size=18, hjust = 0.5,margin = margin(b = 10)),
+      plot.subtitle = element_text(size=16,hjust = 0.5,margin = margin(b = 15)),
+      panel.spacing = unit(1, "lines"),
+      panel.spacing.x = unit(0.5, "lines"),
+      panel.background = element_rect(fill = "white", colour = "white"),
+      strip.background = element_blank(),
+      strip.text = element_text(size=12, face='bold', hjust = 0.5, vjust = 3),
+      axis.ticks = element_blank(),
+      axis.text = element_text(size=12),
+      axis.text.x = element_text(vjust = -3),
+      legend.key.size = unit(1.5, "lines")
+      )
+```
+
+Esta gráfica nos enseña los datos de una manera muy intuitiva y, aunque
+no sea la más precisa debido a lo ya comentado en la fase tres, es la
+que más rápido entendemos con apenas una ojeada. Complicaciones que
+tuvimos con esta gráfica, habiendo hecho ya la tercera fase, fueron
+todas relacionadas con el tipo de dato de la variable *Fecha* y cómo la
+medición de esta varía en las distintas culturas.
+
+### RETO 2: Mapa de España
+
+<hr>
+
+Como reto final y con una temática diferente a las ya vistas en el reto
+2 y las diversas fases, se nos ha propuesto crear una gráfica que
+represente una vista de los países de la Península Ibérica,
+diferenciando España y Portugal mediante el uso de colores. Además, de
+incluir las Islas Canarias en la representación, moviéndolas para que
+aparezcan en la gráfica. Para completar la imagen, también se han
+añadido países vecinos como Francia, Andorra, Marruecos y Argelia, los
+cuales se han representado en un color neutro para diferenciarlos de
+España y Portugal.
+
+```{r echo=FALSE, fig.align='center' ,fig.height=6, fig.width=8}
+data = map_data("world") %>%
+  mutate(lat = if_else(region == "Canary Islands", lat + 7, lat)) %>%
+  mutate(long = if_else(region == "Canary Islands", long + 2, long)) %>%
+  mutate(region = if_else(region == "Canary Islands", "Spain", region)) %>%
+  filter(lat > 31 & lat < 50 & long > -20 & long < 5) %>%
+  filter(region %in% c("Canary Islands", "Spain", "Portugal"))
+
+data2 = map_data("world") %>%
+  filter(!region %in% c("Canary Islands", "Spain", "Portugal")) %>%
+  filter(lat > 31 & lat < 50 & long > -20 & long < 10) %>%
+  mutate(region =  NA)
+
+
+data %>% ggplot() +
+  aes(x=long, y=lat) +
+  geom_polygon(aes(group = group, fill=region), color="black") +
+  geom_polygon(data=data2,aes(group = group, fill=region), color="black", fill="white") +
+  coord_cartesian() +
+  geom_rect(aes(xmin = -17, xmax = -10.5, ymin = 34.2, ymax = 36.5), fill="transparent", color="black") +
+  scale_x_continuous(expand=c(0.04, 0, -0.15, 0), breaks=seq(-20,10,5)) +
+  scale_y_continuous(expand=c(-0.13, -0.1, -0.22, -0.1), breaks=seq(36,46,3)) +
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "lightgrey")
+  ) +
+  labs(title="Mapa Península Iberíca",
+       subtitle="y Canarias",
+       x="longitud",
+       y="latitud")
+```
+
+Esta gráfica, aunque muestra principalmente la ubicación de los países
+de la Península Ibérica, sus territorios y los paises vecinos, puede ser
+la base para un proyecto más amplio y detallado. Por ejemplo, se podría
+agregar información adicional como la ubicación de fábricas, centralitas
+y el comienzo y final de los ríos, siempre y cuando se tenga disponible
+la latitud y longitud correspondiente. De esta manera, estos gráficos
+podrían ser muy útiles para visualizar y analizar datos geográficos.
+
+En la creación de esta gráfica surgieron algunas complicaciones que
+tuvimos que solucionar. Una de ellas fue la eliminación de los márgenes
+internos del mapa para que pudiera ajustarse mejor a nuestros
+propósitos. Además, al principio, tuvimos problemas para representar
+correctamente la ubicación de Argelia, ya que se deformaba en la
+representación.

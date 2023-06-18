@@ -1,0 +1,98 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Gganimate Tutorial
+
+## Your First Animation
+
+```{r}
+library(gganimate)
+library(ggplot2)
+#> Loading required package: ggplot2
+
+# We'll start with a static plot
+p <- ggplot(iris, aes(x = Petal.Width, y = Petal.Length)) + 
+  geom_point()
+
+plot(p)
+```
+
+```{r}
+anim <- p + 
+  transition_states(Species,
+                    transition_length = 2,
+                    state_length = 1)
+
+anim
+```
+
+### Easing
+
+```{r}
+anim + 
+  ease_aes('cubic-in-out') # Slow start and end for a smoother look
+```
+
+```{r}
+anim + 
+  ease_aes(y = 'bounce-out') # Sets special ease for y aesthetic
+```
+
+### Labeling
+
+```{r}
+anim + 
+  ggtitle('Now showing {closest_state}',
+          subtitle = 'Frame {frame} of {nframes}')
+```
+
+### Object Permanence
+
+```{r}
+ggplot(iris, aes(x = Petal.Width, y = Petal.Length)) + 
+  geom_line(aes(group = rep(1:50, 3)), colour = 'grey') + 
+  geom_point()
+```
+
+```{r}
+ggplot(iris, aes(x = Petal.Width, y = Petal.Length)) + 
+  geom_point(aes(colour = Species)) + 
+  transition_states(Species,
+                    transition_length = 2,
+                    state_length = 1)
+```
+
+```{r}
+ggplot(iris, aes(x = Petal.Width, y = Petal.Length)) + 
+  geom_point(aes(colour = Species, group = 1L)) + 
+  transition_states(Species,
+                    transition_length = 2,
+                    state_length = 1)
+```
+
+### Enter and Exit
+
+```{r}
+anim <- ggplot(iris, aes(x = Petal.Width, y = Petal.Length)) + 
+  geom_point(aes(colour = Species), size = 2) + 
+  transition_states(Species,
+                    transition_length = 2,
+                    state_length = 1)
+
+anim + 
+  enter_fade() + 
+  exit_shrink()
+```
+
+```{r}
+library(av)
+animate(anim + 
+  enter_fade() + enter_drift(x_mod = -1) + 
+  exit_shrink() + exit_drift(x_mod = 5),
+  renderer = av_renderer())
+```

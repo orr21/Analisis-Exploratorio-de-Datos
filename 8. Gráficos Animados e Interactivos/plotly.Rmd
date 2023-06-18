@@ -1,0 +1,186 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+```{r}
+library(ggplot2)
+library(plotly)
+library(viridis)
+library(rgdal)
+library(readxl)
+library(tidyverse)
+library(dplyr)
+library(broom)
+```
+
+```{r}
+shapefile_ccaa = readOGR("./datos1/gobcan/municipios.shp", encoding = 'UTF-8')
+poblacion <- read_excel("./datos1/poblacion.xlsx")
+
+nombres_municipios = data.frame(shapefile_ccaa$municipio)
+nombres_municipios$id = as.character(seq(0, nrow(nombres_municipios) - 1))
+
+data_municipios = tidy(shapefile_ccaa)
+
+colnames(nombres_municipios)[1] = 'municipio'
+colnames(poblacion) = c('municipio', 'poblacion')
+
+poblacion$municipio = toupper(poblacion$municipio)
+
+poblacion = poblacion %>%
+  mutate(municipio = case_when(
+    municipio == 'FUENCALIENTE DE LA PALMA' ~ 'FUENCALIENTE',
+    municipio == 'VALSEQUILLO DE GRAN CANARIA' ~ 'VALSEQUILLO',
+    municipio == 'SANTA MARÍA DE GUÍA DE GRAN CANARIA' ~ 'SANTA MARÍA DE GUÍA',
+    municipio == 'EL PINAR DE EL HIERRO' ~ 'EL PINAR',
+    municipio == 'SAN CRISTÓBAL DE LA LAGUNA' ~ 'LA LAGUNA',
+    municipio == 'VILAFLOR DE CHASNA' ~ 'VILAFLOR',
+    TRUE ~ municipio
+  ))
+
+nombres_municipios <- nombres_municipios %>%
+    mutate(municipio = case_when(
+      municipio == "BRE\xd1A ALTA" ~ "BREÑA ALTA",
+      municipio == "SAN ANDR\xc9S Y SAUCES" ~ "SAN ANDRÉS Y SAUCES",
+      municipio == "T\xcdAS" ~ "TÍAS",
+      municipio == "SAN BARTOLOM\xc9" ~ "SAN BARTOLOMÉ",
+      municipio == "HAR\xcdA" ~ "HARÍA",
+      municipio == "G\xdc\xcdMAR" ~ "GÜÍMAR",
+      municipio == "ALAJER\xd3" ~ "ALAJERÓ",
+      municipio == "SANTA MAR\xcdA DE GU\xcdA" ~ "SANTA MARÍA DE GUÍA",
+      municipio == "G\xc1LDAR" ~ "GÁLDAR",
+      municipio == "SANTA LUC\xcdA DE TIRAJANA" ~ "SANTA LUCÍA DE TIRAJANA",
+      municipio == "AG\xdcIMES" ~ "AGÜIMES",
+      municipio == "SAN BARTOLOM\xc9 DE TIRAJANA" ~ "SAN BARTOLOMÉ DE TIRAJANA",
+      municipio == "LA ALDEA DE SAN NICOL\xc1S" ~ "LA ALDEA DE SAN NICOLÁS",
+      municipio == "SANTA BR\xcdGIDA" ~ "SANTA BRÍGIDA",
+      municipio == "P\xc1JARA" ~ "PÁJARA",
+      municipio == "SAN SEBASTI\xc1N DE LA GOMERA" ~ "SAN SEBASTIÁN DE LA GOMERA",
+      municipio == "GARAF\xcdA" ~ "GARAFÍA",
+      municipio == "MOG\xc1N" ~ "MOGÁN",
+      municipio == "GU\xcdA DE ISORA" ~ "GUÍA DE ISORA",
+      municipio == "SANTA \xdaRSULA" ~ "SANTA ÚRSULA",
+      municipio == "BRE\xd1A BAJA" ~ "BREÑA BAJA",
+      TRUE ~ municipio
+    ))
+
+```
+
+
+```{r}
+df = data_municipios %>%
+  left_join(nombres_municipios, by='id') %>%
+  left_join(poblacion, by='municipio') %>%
+  mutate(provincia = if_else(long < 4e05, 'SCTF', 'LP'))
+
+df = df[order(df$poblacion, decreasing = TRUE),]
+```
+
+
+```{r y, echo=FALSE, message=FALSE, warning=FALSE, fig.width= 6}
+# Unimos ambos dataframes por nombre de los municipios
+data_municipios_canarias_mapa_discrete <- df %>%
+  mutate(Intervalo = cut(poblacion, quantile(poblacion, probs = seq(0, 1, 0.1),na.rm = TRUE), include.lowest = TRUE))
+```
+
+```{r aa, echo=FALSE, fig.height=4, fig.width=7.8, message=FALSE, warning=FALSE, dpi=300, fig.align='center'}
+p = data_municipios_canarias_mapa_discrete %>%
+  ggplot(aes(text=sprintf("Municipio:%s <br>", municipio))) +
+  geom_polygon(aes(x= long, y = lat, group = group, fill = Intervalo),
+               color = "black",
+               size = 0.05) +
+  scale_fill_viridis(name = "Población", option = "viridis", discrete = TRUE, na.translate = F) + # Usamos la paleta de colores viridis
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank(),
+    legend.title = element_text(color = "black", size = 10),
+    legend.text = element_text(color = "grey40", size = 8, hjust = 0),
+    legend.position = "bottom", 
+    legend.box = "horizontal", # Mostramos la leyenda en horizontal
+    legend.margin = margin(t = 0, r = 10, b = 0, l = 10, unit = "pt") # Ajustamos la posición de la leyenda
+  ) +
+  labs(
+    title = "Municipios de Canarias",
+    subtitle = "Población en 2021",
+    caption = "Crédito: Ricardo Cárdenes y Óscar Rico\nFuente: Instituto Canario de Estadística (ISTAC)"
+  )
+```
+
+```{r, fig.height=4, fig.width=7.8}
+p = ggplotly(p)
+config(p, scrollZoom = TRUE, 
+       modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d"))
+```
+
+```{r}
+st_pos = c()
+lp_pos = c()
+
+id_tf = 1
+id_lp = 1
+
+for (id in as.numeric(unique(df$id[df$provincia == 'SCTF']))) {
+  st_pos = c(st_pos, rep(id_tf, length(df$id[df$id == id])))
+  id_tf = id_tf + 1
+}
+
+for (id in as.numeric(unique(df$id[df$provincia == 'LP']))) {
+  lp_pos = c(lp_pos, rep(id_lp, length(df$id[df$id == id])))
+  id_lp = id_lp + 1
+}
+
+df$Posición[df$provincia == 'SCTF'] = st_pos
+df$Posición[df$provincia == 'LP'] = lp_pos
+```
+
+
+```{r, fig.height=4, fig.width=7.8}
+df$Posición = as.factor(ifelse(df$Posición <= 6, df$Posición, '6<'))
+pprovincias =
+  ggplot(df, aes(x=long, y=lat, group=group, fill=Posición, text=sprintf("Municipio: %s<br>Provincia: %s<br>Población: %s", municipio, provincia, poblacion))) +
+  geom_polygon(color='white', size=0.1) +
+  theme(
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    plot.title = element_text(size=18, 
+                                  hjust=0.5, 
+                                  color='darkblue'),
+    plot.subtitle = element_text(size=12,
+                                  hjust=0.5),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.background = element_rect(fill='transparent')
+  ) + 
+  scale_fill_viridis_d(option='viridis',) +
+  labs(title = 'Municipios de mayor población',
+       subtitle = 'Por provincia') +
+  geom_vline(xintercept = 4e05, linetype = 'dashed', color = 'darkgray', size=0.5)
+
+p = ggplotly(pprovincias)
+config(p, scrollZoom = TRUE, 
+       modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d"))
+```
+
+
+

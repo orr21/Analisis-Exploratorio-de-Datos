@@ -1,0 +1,321 @@
+---
+output:
+  pdf_document:
+    includes:
+      in_header: reformat_paragraph.tex
+      # Necesario para exportar a pdf sin dificultades
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{=latex}
+\begin{titlepage}
+\centering
+{\bfseries\LARGE Universidad de Las Palmas de Gran Canaria\par}
+\vspace{1cm}
+{\scshape\Large Facultad de Ingenier\'ia Inform\'atica \par}
+\vspace{3cm}
+{\scshape\Huge Tutorial: R que R \par}
+\vspace{3cm}
+{\itshape\Large An\'alisis Exploratorio de Datos \par}
+\vfill
+{\Large Autores: \par}
+{\Large Ricardo C\'ardenes \par}
+{\Large \'Oscar Rico \par}
+\vfill
+{\Large Abril 2023 \par}
+\end{titlepage}
+```
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Para manipular dataframes y graficar
+library(tidyverse)
+
+# Para importar archivos shapefiles
+library(rgdal)
+
+# Para transformar los archivos shapefiles 
+library(broom)
+
+# Para una mejor visualización
+library(knitr)
+
+# Para cargar datos en excel
+library(readxl)
+```
+
+### Comunidades autonomas
+
+Lo primero que haremos será importar los datos cartográficos de las comunidades autonomas.
+
+```{r a, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Guardamos el archivo shapefile
+shapefile_ccaa <- readOGR("./CCAA/Comunidades_Autonomas_ETRS89_30N.shp")
+
+# Para convertir el archivo shapefile en un dataframe utilizamos la función tidy()
+data_ccaa <- tidy(shapefile_ccaa)
+```
+
+```{r b, echo=FALSE, message=FALSE, warning=FALSE}
+kable(head(data_ccaa,4))
+```
+
+A continuación, obtenemos los nombres de cada comunidad autonoma y les asignamos su id para poder añadir estos datos a los cartográficos.
+
+```{r c, echo=FALSE}
+# Cargamos los nombres
+nombres_ccaa <- data.frame(shapefile_ccaa$Texto)
+# Conseguimos las ids
+nombres_ccaa$id <- as.character(seq(0, nrow(nombres_ccaa)-1))
+# Mostramos resultado
+kable(head(nombres_ccaa,4))
+```
+
+Ahora si, procedemos a juntar ambos data frames por su id
+
+```{r d, echo=FALSE, message=FALSE, warning=FALSE}
+# Unimos ambos dataframes por id
+data_ccaa_mapa <- left_join(data_ccaa, nombres_ccaa, by = "id")
+# Mostramos resultados
+kable(head(data_ccaa_mapa,4))
+```
+
+Este sería el resultado de gráficar los datos una vez tratados y unidos:
+
+```{r e, echo=FALSE, fig.width= 5, fig.height= 3.5, message=FALSE, warning=FALSE, fig.align='center'}
+data_ccaa_mapa %>%
+  ggplot() +
+  geom_polygon(aes( x= long, y = lat, group = group),
+               fill = "violetred4",
+               color = "white") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank()
+    ) +
+  ggtitle("Comunidades Autónomas Españolas")
+```
+
+\newpage
+
+### Provincias españolas
+
+Lo primero que haremos será importar los datos cartográficos de las provicias españolas.
+
+```{r f, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Guardamos el archivo shapefile
+shapefile_provincias <- readOGR("./Provincias/Provincias_ETRS89_30N.shp")
+
+# Para convertir el archivo shapefile en un dataframe utilizamos la función tidy()
+data_provincias <- tidy(shapefile_provincias)
+```
+
+```{r h, echo=FALSE, message=FALSE, warning=FALSE}
+kable(head(data_provincias,4))
+```
+
+A continuación, obtenemos los nombres de cada provincia y les asignamos su id para poder añadir estos datos a los cartográficos.
+
+```{r i, echo=FALSE, message=FALSE, warning=FALSE}
+# Cargamos los nombres
+nombres_provincias <- data.frame(shapefile_provincias$Texto)
+# Conseguimos las ids
+nombres_provincias$id <- as.character(seq(0, nrow(nombres_provincias)-1))
+# Mostramos resultado
+kable(head(nombres_provincias,4))
+```
+
+Ahora si, procedemos a juntar ambos data frames por su id
+
+```{r j, echo=FALSE, message=FALSE, warning=FALSE}
+# Unimos ambos dataframes por id
+data_provincias_mapa <- left_join(data_provincias, nombres_provincias, by = "id") %>% rename("provincias" = shapefile_provincias.Texto)
+# Mostramos resultados
+kable(head(data_provincias_mapa,4))
+```
+
+Este sería el resultado de gráficar los datos una vez tratados y unidos:
+
+```{r k, echo=FALSE, fig.width= 5, fig.height= 3.5, fig.align='center'}
+data_provincias_mapa %>%
+  ggplot() +
+  geom_polygon(aes( x= long, y = lat, group = group),
+               fill = "violetred4",
+               color = "white") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank()
+    ) +
+  ggtitle("Provincias Españolas")
+```
+
+\newpage
+
+### Municipios españoles
+
+Lo primero que haremos será importar los datos cartográficos de los municipios españoles.
+
+```{r l, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Guardamos el archivo shapefile
+shapefile_municipios <- readOGR("./Municipios/Municipios_IGN.shp")
+
+# Para convertir el archivo shapefile en un dataframe utilizamos la función tidy()
+data_municipios <- tidy(shapefile_municipios)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+kable(head(data_municipios,3))
+```
+
+A continuación, obtenemos los nombres de cada provincia y les asignamos su id para poder añadir estos datos a los cartográficos.
+
+```{r m, echo=FALSE, message=FALSE, warning=FALSE}
+# Cargamos los codigos
+codigo_municipios <- data.frame(shapefile_municipios$CODIGOINE)
+
+# Conseguimos las ids
+codigo_municipios$id <- as.character(seq(0, nrow(codigo_municipios)-1))
+
+# Mostramos resultado
+kable(head(codigo_municipios,3))
+```
+
+Ahora si, procedemos a juntar ambos data frames por su id
+
+```{r n, echo=FALSE, message=FALSE, warning=FALSE}
+# Unimos ambos dataframes por id
+data_municipios_mapa <- left_join(data_municipios, codigo_municipios, by = "id") %>%
+  mutate(codigo_ine = as.character(`shapefile_municipios.CODIGOINE`)) %>%
+  select(-`shapefile_municipios.CODIGOINE`)
+# Mostramos resultados
+kable(head(data_municipios_mapa,3))
+```
+
+Este sería el resultado de gráficar los datos una vez tratados y unidos:
+
+```{r o, echo=FALSE, message=FALSE, fig.height= 4, fig.width= 7, warning=FALSE, fig.align='center'}
+
+data_municipios_mapa %>%
+  slice(seq(1, nrow(data_municipios_mapa), 5)) %>%
+  ggplot() +
+  geom_polygon(aes( x= long, y = lat, group = group),
+               fill = "violetred4",
+               color = "white",
+               size = 0.001) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank()
+    ) +
+  ggtitle("Municipios Españoles")
+```
+
+\newpage
+
+### Indice del precio de los alquileres según la provincia
+
+En este apartado del trabajo, inicialmente intentamos cargar los datos de municipios, pero lamentablemente no pudimos encontrar suficientes datos de calidad que contuvieran un número aceptable de municipios. Por lo tanto, decidimos cambiar nuestra búsqueda y elegimos datos sobre el índice del precio de los alquileres en las provincias en 2020. Sin embargo, al cargar los datos, notamos que faltaban algunos datos sobre el País Vasco y Navarra, lo que podría afectar la precisión de nuestros resultados.
+
+Dada esta situación, decidimos ser creativos y buscar una solución que pudiera hacer que nuestro trabajo fuera más interesante y visualmente atractivo. Por lo tanto, decidimos centrarnos en Ceuta y Melilla, lo que les daría más importancia en el mapa y permitiría que este apartado se destacara de los anteriores. Aunque todavía faltaban algunos datos sobre algunas provincias, esta estrategia nos permitió utilizar datos disponibles para crear un análisis interesante y diferente. Esperamos que esto enriquezca el trabajo.
+
+Lo primero que haremos será importar los datos cartográficos de los indices de los precios de alquiler para cada provincia.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+Precio_alquileres_provincias <- read_excel("./Extension/Precio_alquileres_provincias.xlsx")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+kable(head(Precio_alquileres_provincias))
+```
+
+A continuación, trataremos los nombres de las provincias en el conjunto de precios de alquiler, para que sean iguales a los nombres de las pronvicas de los datos que ya importamos anteriormente.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+Precio_alquileres_provincias <- Precio_alquileres_provincias %>%
+  mutate(provincias = substr(Precio_alquileres_provincias$provincias, 4, nchar(Precio_alquileres_provincias$provincias)))
+
+kable(head(Precio_alquileres_provincias))
+```
+
+Ahora si, procedemos a juntar ambos data frames por los nombres de las provincias
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Unimos ambos dataframes por código INE
+data_provincias_alquileres_mapa <- left_join(data_provincias_mapa, Precio_alquileres_provincias, by = "provincias")
+# Mostramos resultados
+kable(head(data_provincias_alquileres_mapa))
+```
+
+\newpage
+
+Tras trabajar con los datos nos dimos cuenta de que, a pesar de su aparente completitud, faltaban algunos datos sobre el País vasco y Navarra.
+
+```{r echo=FALSE}
+kable(
+unique(anti_join(data_provincias_alquileres_mapa, Precio_alquileres_provincias, by = "provincias")$provincias)
+)
+```
+
+Después de considerar lo mencionado anteriormente, hemos decidido abordar la falta de representación de algunas provincias, centrándonos en mejorar la visibilidad de Ceuta y Melilla en el mapa. De esta manera, evitaremos que esta sección parezca demasiado similar a las anteriores y le daremos un toque distintivo.
+
+```{r echo=FALSE}
+ciudades <- data.frame(provincias = c("Ceuta", "Melilla"),
+                       long = c(286170, 503543),
+                       lat = c(3977266, 3907882))
+data_ciudades_alquileres_mapa <- inner_join(Precio_alquileres_provincias, ciudades, by = "provincias")
+```
+
+Este sería el resultado de gráficar los datos una vez tratados y unidos:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data_provincias_alquileres_mapa %>%
+  ggplot(aes(x=long, y= lat)) +
+  geom_polygon(aes(fill= as.double(indice), group = group), color= "white", size = 0.1) +
+  geom_point(data = data_ciudades_alquileres_mapa, aes(x = long, y = lat, 
+             fill = as.double(indice)), color= "white", size = 2, shape = 21) +
+  labs( title = "Provincias",
+        subtitle = "Indice Precio Alquileres 2020",
+        caption = "Fuente: INE",
+        fill = "Indice Precio") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank(),
+    legend.title = element_text(color = "grey40", size = 8),
+    legend.text = element_text(color = "grey40", size = 7, hjust = 0),
+    legend.position = c(0.93, 0.2))
+```
+
+### Datos usados
+
+[Datos cartográficos de las comunidades autonomas de España](https://www.arcgis.com/home/item.html?id=5f689357238847bc823a2fb164544a77)
+
+[Datos cartográficos de las provincias españolas](https://www.arcgis.com/home/item.html?id=83d81d9336c745fd839465beab885ab7)
+
+[Datos cartográficos de los municipios españoles](https://opendata.esri.es/datasets/53229f5912e04f1ba6dddb70a5abeb72_0/explore?location=35.446512%2C-6.916698%2C6.43)
+
+[Datos indice precio del alquiler por provincia](https://www.ine.es/jaxiT3/Tabla.htm?t=50008&L=0)

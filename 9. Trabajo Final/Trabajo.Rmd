@@ -1,0 +1,1870 @@
+---
+title: "Estudio de los tipos de enfermedad en España"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,  warning = FALSE, message = FALSE)
+options(knitr.kable.NA = '')
+```
+
+```{r}
+library(stringr)  # Proporciona funciones para manipulación de cadenas de texto.
+library(broom)  # Proporciona herramientas para convertir los resultados de modelos estadísticos en marcos de datos organizados.
+library(rgdal)  # Proporciona funciones para leer y escribir datos espaciales en diferentes formatos, utilizando la biblioteca GDAL.
+
+library(viridis)  # Proporciona paletas de colores perceptualmente uniformes para visualización de datos.
+library(ggridges)  # Proporciona funciones para crear gráficos de densidad de kernel en capas, conocidos como "ridgeline plots".
+
+library(tidyverse)  # Un conjunto de paquetes que facilitan la manipulación, visualización y modelado de datos de forma coherente y eficiente.
+
+library(readxl)  # Proporciona funciones para leer archivos de Excel en R.
+library(gridExtra)  # Proporciona funciones para organizar múltiples gráficos en una sola figura.
+
+library(kableExtra)  # Proporciona funciones para mejorar la apariencia de tablas en RMarkdown.
+
+library(reshape2)  # Proporciona funciones para transformar y reestructurar datos.
+library(reshape)  # Proporciona funciones para la reestructuración de datos.
+
+library(scales)  # Proporciona funciones para ajustar y formatear escalas en gráficos.
+
+library(cowplot)  # Proporciona funciones para combinar múltiples gráficos en una sola figura.
+
+library(gganimate)  # Proporciona herramientas para crear animaciones a partir de gráficos de ggplot2.
+
+library(gifski)  # Librería utilizada para la creación de archivos GIF a partir de secuencias de imágenes.
+
+library(leaflet)  # Proporciona una interfaz para crear mapas interactivos.
+
+library(corrplot)  # Proporciona funciones para visualizar matrices de correlación.
+
+library(plotly)  # Proporciona una interfaz para crear gráficos interactivos.
+```
+
+<style>
+body {
+  text-align: justify;
+}
+</style>
+
+## Introducción
+
+En el contexto de la salud pública, es esencial comprender las enfermedades que afectan a una población y su relación con la disponibilidad de personal sanitario. En España, conocer qué tipo de enfermedades tienen un mayor impacto en términos de defunciones y cómo esta situación se relaciona con la cobertura de médicos y enfermeros en activo es fundamental para identificar posibles desafíos y diseñar estrategias efectivas de prevención y atención médica.
+
+El objetivo de esta investigación es analizar la relación entre la incidencia de enfermedades, la cobertura de personal sanitario y la población en España. Nos centraremos en varios aspectos, como determinar qué tipo de enfermedad afecta más en España en general y en cada comunidad autónoma, así como investigar las categorías de enfermedades que tienen mayor impacto en la comunidad autónoma de Canarias y sobre todo, en las islas capitalinas.
+
+La disponibilidad de médicos y enfermeros en activo desempeña un papel crucial en el sistema sanitario, ya que garantiza una atención médica adecuada, la detección temprana de enfermedades y la gestión efectiva de la salud de la población. Además, la incidencia de enfermedades está intrínsecamente relacionada con la composición demográfica y las características de la población.
+
+Este estudio proporcionará información valiosa para comprender mejor los patrones de enfermedad en España, identificar posibles brechas en la atención médica y formular recomendaciones para mejorar la salud de la población. Además, ayudará a establecer bases sólidas para investigaciones futuras y políticas de salud más eficaces y centradas en las necesidades de la población.
+
+## Preguntas de investigación
+
+1.  ¿Cómo han ido evolucionando los tipos de enfermedades desde 2002 hasta 2021?
+
+2.  ¿Qué enfermedad afecta más a cada grupo de Edad en España?
+
+3.  ¿Existe algún tipo de relación entre el número de médicos y enfermeros en activo, y las defunciones por enfermedades en España por grupos de Edad?
+
+4.  ¿Existe algún tipo de relación entre las defunciones por enfermedades en España, la natalidad, la población y la edad media?
+
+5.  ¿Cuáles son las enfermedades que más afectan en Canarias?
+
+6.  ¿Mejora la tasa de defunciones por enfermedad?
+
+7.  ¿Existen anomalías de enfermedades y defunciones en las islas?
+
+## España
+
+### Fuentes de datos
+
+Para llevar a cabo este estudio, hemos recopilado datos principalmente de la INE, una fuente confiable y pertinente. Los principales conjuntos de datos seleccionados son los siguientes:
+
+-   [Defunciones en España](https://www.ine.es/jaxiT3/Tabla.htm?t=7947): Utilizamos los datos del Instituto Nacional de Estadística ([INE](https://www.ine.es/index.htm)) que proporcionan información sobre las defunciones registradas en España. Estos datos se filtraron para incluir solo las enfermedades como causa de muerte. Además, se recopilaron datos sobre los grupos de edad y el período de tiempo comprendido entre 2000 y 2021.
+
+-   [Población total de España](https://www.ine.es/jaxi/Tabla.htm?path=/t20/e245/p08/l0/&file=02003.px&L=0): Utilizando los datos del [INE](https://www.ine.es/index.htm), recopilamos información sobre la población total de España en diferentes períodos entre 2000 y 2021. Estos datos son fundamentales para calcular tasas de incidencia y prevalencia de enfermedades en relación con la población.
+
+-   [Edad media en España](https://www.ine.es/jaxiT3/Tabla.htm?t=3199&L=0): Los datos utilizados en este estudio provienen del [INE](https://www.ine.es/index.htm). Se recopilaron datos sobre la edad media de la población española en diferentes períodos comprendidos entre 2000 y 2021. Estos datos son relevantes para analizar la relación entre la edad media de la población y las enfermedades.
+
+-   [Número de médicos en activo en España](https://www.ine.es/jaxi/Tabla.htm?tpx=48995&L=0): Se recopilaron datos del [INE](https://www.ine.es/index.htm) sobre el número de médicos en activo en España durante los años 2000 a 2021. Estos datos nos permiten analizar la relación entre la disponibilidad de médicos y la incidencia de enfermedades.
+
+-   [Número de enfermeros en activo en España](https://www.ine.es/jaxi/Tabla.htm?tpx=49002&L=0): Estos datos, obtenidos del [INE](https://www.ine.es/index.htm), proporcionan información sobre la cantidad de enfermeros en activo en España en diferentes períodos entre 2000 y 2021. Estos datos son esenciales para comprender la disponibilidad de profesionales de la salud y su relación con las enfermedades.
+
+En algunos de los conjuntos se encontraban columnas univariables que fueron eliminadas a mano con excel, ya que era considerada información redundante o no relevante para el estudio.
+
+### Preparación de los datos
+
+Durante el proceso de preparación de datos, se utilizaron diversas técnicas para asegurar la calidad y adecuación de los conjuntos de datos utilizados en el estudio.
+
+En primer lugar, se cargaron los datos de defunciones en España por causa de la muerte y se realizaron varios pasos de manipulación y transformación. Se renombraron las columnas relevantes y se eliminaron partes innecesarias de las etiquetas de las enfermedades. Además, se agruparon los datos por enfermedad, edad y periodo para obtener una visión más clara de la información. Una de las principales decisiones que se tome en la preparación de datos fue la de acotar los grupos de edad, para así poder proporcionar una visualización más clara, se paso de tener 19 grupos de edad a 6 divididos en:
+
+1.  Menores de 1 año
+
+2.  Jovenes (1-24 años)
+
+3.  Adultos (25-49 años)
+
+4.  Adultos mayores (50-74)
+
+5.  Ancianos (75-94)
+
+6.  Mayores de 95 años
+
+Además, en algunos casos se acotaron los años en quinquenios por el mismo motivo.
+
+Para facilitar la comparación del crecimiento a lo largo del tiempo, se realizó una indexación relativa de los datos de defunciones, población, médicos, enfermeros, natalidad y edad media en España. Esto permitió analizar las variaciones porcentuales en relación con los valores iniciales de referencia (en este caso, el año 2000). De esta manera, se pudo evaluar el crecimiento relativo de estos indicadores a lo largo del tiempo.
+
+```{r}
+Defunciones_España <- read.csv2("./Datos/España/Defunciones_España.csv", sep=";", fileEncoding = "ISO-8859-3")
+Defunciones_España = Defunciones_España %>%
+  rename(Enfermedades = "Causa.de.muerte",
+         Defunciones = "Total") %>%
+  mutate(Enfermedades = str_remove(Enfermedades, ".*(?=\\.)\\.")) %>%
+  mutate(Enfermedades = str_remove(Enfermedades, ".*Enfermedades")) %>%
+  mutate(Enfermedades = gsub("^ de la\\s+|^ del\\s+|^ |,.*", "", Enfermedades)) %>%
+  mutate(Enfermedades = paste(toupper(substr(Enfermedades, 1, 1)), substr(Enfermedades, 2, nchar(Enfermedades)), sep = "")) %>%
+  group_by(Enfermedades, Periodo) %>%
+  mutate(Edad = case_when(
+    Edad %in% c("De 1 a 4 años", "De 5 a 9 años", "De 10 a 14 años  ", "De 15 a 19 años  ", "De 20 a 24 años") ~ "Jovenes (1-24 años)",
+    Edad %in% c("De 25 a 29 años", "De 30 a 34 años", "De 35 a 39 años", "De 40 a 44 años", "De 45 a 49 años") ~ "Adultos (25-49 años)",
+    Edad %in% c("De 50 a 54 años", "De 55 a 59 años", "De 60 a 64 años", "De 65 a 69 años", "De 70 a 74 años  ") ~ "Adultos mayores (50-74 años)",
+    Edad %in% c("De 75 a 79 años  ", "De 80 a 84 años  ", "De 85 a 89 años  ", "De 90 a 94 años  ") ~ "Ancianos (75-94 años)",
+    TRUE ~ Edad
+  )) %>%
+  group_by(Enfermedades,Edad,Periodo) %>%
+  summarise(Defunciones = sum(Defunciones))
+```
+
+```{r}
+# Al estar trabajando con series temporales, lo mejor para comparar su crecimiento será realizar una indexación relativa
+Variacion_Defunciones_España_Edad = Defunciones_España %>%
+    group_by(Edad,Periodo) %>%
+    summarise(Defunciones = sum(Defunciones)) %>%
+    mutate(Variacion = Defunciones / Defunciones[Periodo == 2000] * 100)
+```
+
+```{r}
+# Al estar trabajando con series temporales, lo mejor para comparar su crecimiento será realizar una indexación relativa
+Variacion_Defunciones_España_Periodo = Defunciones_España %>%
+  group_by(Periodo) %>%
+  summarise(Defunciones = sum(Defunciones)) %>%
+  mutate(Variacion = Defunciones/Defunciones[1] * 100)
+```
+
+```{r}
+Defunciones_España_discreta = Defunciones_España %>%
+    mutate(Periodo = case_when(
+        Periodo %in% c(2002,2003,2004,2005,2006) ~ "2002-2006",
+        Periodo %in% c(2007,2008,2009,2010,2011) ~ "2007-2011",
+        Periodo %in% c(2012,2013,2014,2015,2016) ~ "2012-2016",
+        Periodo %in% c(2017,2018,2019,2020,2021) ~ "2017-2021",
+        TRUE ~ as.character(Periodo)
+    )) %>%
+    group_by(Periodo,Edad,Enfermedades) %>%
+    summarise(Defunciones = sum(Defunciones)) %>%
+    summarise(Enfermedades,Defunciones,Porcentaje = Defunciones/sum(Defunciones)*100)
+```
+
+```{r}
+Poblacion_España <- read.csv2("./Datos/España/Población_España.csv", fileEncoding="ISO-8859-3", sep=";")
+# Al estar trabajando con series temporales, lo mejor para comparar su crecimiento será realizar una indexación relativa
+Poblacion_España = Poblacion_España %>%
+  mutate(Variacion = Total/Poblacion_España[Poblacion_España$Periodo==2000,]$Total * 100)
+```
+
+```{r}
+Medicos_España <- read.csv2("./Datos/España/Médicos.csv", fileEncoding="ISO-8859-3", sep=";") 
+Medicos_España = Medicos_España %>%
+  mutate(Total = Total/Poblacion_España$Total*1000) # Se pasan las unidades a Medicos por cada 1000 habitantes
+# Al estar trabajando con series temporales, lo mejor para comparar su crecimiento será realizar una indexación relativa
+Medicos_España = Medicos_España %>%
+  mutate(VariacionM = Total/Medicos_España[Medicos_España$Periodo==2000,]$Total * 100)
+
+```
+
+```{r}
+Enfermeros_España <- read.csv2("./Datos/España/Enfermeros.csv", fileEncoding="ISO-8859-3", sep=";")
+Enfermeros_España = Enfermeros_España %>%
+  mutate(Total = Total/Poblacion_España$Total*1000) # Se pasan las unidades a Enfermeros por cada 1000 habitantes
+# Al estar trabajando con series temporales, lo mejor para comparar su crecimiento será realizar una indexación relativa
+Enfermeros_España = Enfermeros_España %>%
+  mutate(VariacionE = Total/Enfermeros_España[Enfermeros_España$Periodo==2000,]$Total * 100)
+```
+
+```{r}
+Natalidad_España <- read.csv2("./Datos/España/Natalidad_España.csv", fileEncoding="ISO-8859-3", sep=";")
+# Al estar trabajando con series temporales, lo mejor para comparar su crecimiento será realizar una indexación relativa
+Natalidad_España = Natalidad_España %>%
+  mutate(Variacion = Total/Natalidad_España[Natalidad_España$Periodo==2000,]$Total * 100)
+```
+
+```{r}
+EMedia_España <- read.csv2("./Datos/España/EMedia_España.csv", fileEncoding="ISO-8859-3", sep=";")
+# Al estar trabajando con series temporales, lo mejor para comparar su crecimiento será realizar una indexación relativa
+EMedia_España = EMedia_España %>%
+  mutate(Variacion = Total/EMedia_España[EMedia_España$Periodo==2000,]$Total * 100)
+```
+
+### ¿Cómo han ido evolucionando los tipos de enfermedades desde 2002 hasta 2021?
+
+A continuación, se presenta un análisis de la evolución de los tipos de enfermedades en España desde 2002 hasta 2021, dividiendo estos 20 años en quinquenios para observar de manera más clara los cambios en las enfermedades que más afectan a la población española.
+
+```{r include=FALSE}
+generate_graph <- function(filter_period) {
+  color_palette <- c("Infecciosas y parasitarias" = "#1EFF8FFF",
+                     "Tumores" = "#482173FF",
+                     "Sangre y de los órganos hematopoyéticos" = "#2BB07FFF",
+                     "Endocrinas" = "#38598CFF",
+                     "Trastornos mentales y del comportamiento" = "#2D708EFF",
+                     "Sistema nervioso y de los órganos de los sentidos" = "#25858EFF",
+                     "Sistema circulatorio" = "#440154FF",
+                     "Sistema respiratorio" = "#433E85FF",
+                     "Sistema digestivo" = "#51C5CFFF",
+                     "Piel y del tejido subcutáneo" = "#FDE725FF",
+                     "Sistema osteomuscular y del tejido conjuntivo" = "#C2DF23FF",
+                     "Sistema genitourinario" = "#85D54AFF")
+  
+  graph <- Defunciones_España_discreta %>%
+    filter(Periodo == filter_period,
+           Edad == "Todas las edades") %>%
+    arrange(desc(Defunciones))  %>%
+    mutate(Enfermedades = factor(Enfermedades, levels = Enfermedades[order(Defunciones, decreasing = TRUE)])) %>%
+    ggplot(aes(x = Enfermedades, y = Defunciones, fill = Enfermedades)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = color_palette) +
+    labs(title = filter_period,
+         x = "",
+         y = "Total de defunciones",
+         fill = "Tipo de enfermedad") +
+    scale_y_continuous(breaks= seq(0,650000,50000), limits = c(0,650000)) +
+    theme_minimal() +
+    theme(axis.text.x = element_blank(),
+          legend.position = "bottom",
+          legend.box = "horizontal",
+          legend.title = element_text(size = 12),
+          legend.text = element_text(size = 12),
+          legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+          panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_line(linewidth = 0.5, color = "gray"),
+          plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+          axis.text.y = element_text(size = 10, face = "bold")
+          )
+  
+  return(graph)
+}
+
+# Generar los gráficos
+graph1 <- generate_graph("2002-2006")
+graph2 <- generate_graph("2007-2011") + labs(y = "") + theme(legend.position = "None", axis.text.y = element_blank())
+graph3 <- generate_graph("2012-2016") + theme(legend.position = "None")
+graph4 <- generate_graph("2017-2021") + labs(y = "") + theme(legend.position = "None", axis.text.y = element_blank())
+
+# Extraer la leyenda del primer gráfico
+legend <- get_legend(graph1)
+
+# Añadir la leyenda a los demás gráficos
+graph1 <- graph1 + theme(legend.position = "None")
+
+title <- ggdraw() +
+  draw_label("Total de defunciones por tipo de enfermedad en España", 
+             fontface = "bold", # Negrita
+             size = 18) # Tamaño de fuente
+
+# Combinar la cuadrícula y el título
+p = plot_grid(title, grid.arrange(graph1, graph2, graph3, graph4, nrow = 2, ncol = 2, bottom = legend), ncol = 1, rel_heights = c(0.1, 0.9))
+```
+```{r fig.align = 'center', fig.width=16,fig.height=10}
+p
+```
+
+Durante el período analizado en España, las enfermedades del sistema circulatorio y los tumores han sido las principales causas de enfermedad y mortalidad. Además, se ha observado un aumento en el número de defunciones relacionadas con el sistema respiratorio y los trastornos mentales. En general, se puede apreciar cómo muchas enfermedades han ido cobrando más víctimas con el paso del tiempo, aunque también hay aspectos positivos, como la disminución de defunciones relacionadas con el sistema circulatorio.
+
+Es importante destacar que, si bien algunas enfermedades han mostrado un aumento en su impacto, otras han disminuido en su incidencia. Por lo tanto, es necesario realizar un análisis más detallado para comprender mejor las tendencias y factores que influyen en la salud y bienestar de la población.
+
+Otra opción era esta pregunta, pero que finalmente acabo siendo descartada a pesar de que realice muy bien su trabajo, fue la siguiente:
+
+```{r, fig.align = 'center'}
+Defunciones_ranked <- Defunciones_España %>%
+  filter(Edad == "Todas las edades") %>% 
+  group_by(Periodo) %>% # The * 1 makes it possible to have non-integer ranks while sliding
+  mutate(rank = rank(-Defunciones)) %>% 
+  group_by(Enfermedades) %>%
+  ungroup()
+
+population_plot_bar <- Defunciones_ranked %>%   
+  filter(Edad == "Todas las edades") %>% 
+  group_by(Periodo) %>%
+  filter(rank <= 5)  %>%
+  ungroup() %>%
+  ggplot(aes(rank, group = Enfermedades, fill = as.factor(Enfermedades), color = as.factor(Enfermedades))) +
+  geom_tile(aes(y = Defunciones/2,
+                height = Defunciones,
+                width = 0.9), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(Enfermedades, " ")), vjust = 0.2, hjust = 1, size = 3.5) +
+  geom_text(aes(y=Defunciones,label = Defunciones, hjust=0))  +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_x_reverse() +
+  scale_fill_viridis(discrete = TRUE, option = "viridis", end = 0.8) +
+  scale_color_viridis(discrete = TRUE, option = "viridis", end = 0.8) +
+  guides(color = FALSE, fill = FALSE) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.position="none",
+        panel.background=element_blank(),
+        panel.border=element_blank(),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.grid.major.x = element_line( size=.1, color="grey" ),
+        panel.grid.minor.x = element_line( size=.1, color="grey" ),
+        plot.title=element_text(hjust=0.5, face="bold", colour="black", vjust=-1),
+        plot.subtitle=element_text(hjust=0.5, face="italic", color="black",size=10),
+        plot.caption =element_text(hjust=0.5, face="italic", color="grey"),
+        plot.background=element_blank(),
+       plot.margin = margin(2,2, 2, 8.5, "cm")) + 
+  transition_states(Periodo, transition_length = 1, state_length = 100, wrap = FALSE) +
+  view_follow(fixed_x = TRUE)  +
+  labs(title = 'Top 5 Enfermedades que provocan defunciones en España',
+       subtitle  =  "Años : {closest_state}",
+       caption  = "Data Source: INE")
+animate(
+  population_plot_bar,
+  width = 1080,
+  height = 720,
+  fps = 25,
+  duration = 30,
+  renderer = gifski_renderer(),
+  end_pause = 100
+)
+```
+
+El principal motivo por el que fue descartada es por el hecho de que no se hace sencillo comparar los periodos y queríamos mostrar una evolución que se pudiera comparar.
+
+### ¿Qué enfermedad afecta más a cada grupo de Edad en España?
+
+Tras explorar las enfermedades que más afectaban a España decidimos ver que enfermedades afectaban más a cada grupo etario.
+
+```{r fig.align='center', fig.width=12, fig.height=12}
+Defunciones_España_discreta %>%
+    filter(Periodo %in% c("2002-2006","2007-2011","2012-2016","2017-2021"),
+           Edad != "Todas las edades") %>%
+    mutate(Edad = factor(Edad, levels = c("Menos de 1 año","Jovenes (1-24 años)", "Adultos (25-49 años)", "Adultos mayores (50-74 años)", "Ancianos (75-94 años)", "95 y más años"))) %>%
+    group_by(Edad) %>%
+    ggplot() +
+    aes(x=as.factor(Edad), y=as.factor(Enfermedades), fill=Porcentaje) +
+    geom_tile(aes(width=0.8, height=0.8), size=2) +
+    scale_fill_gradient2(low = "#FDE725FF", mid = "#51C56AFF", high = "#440154FF", labels = scales::comma, midpoint = 25) +
+    facet_wrap(~Periodo, ncol=2) +
+    labs(title="Enfermedades que más afectaron a los grupos de edad",
+         subtitle = "por quinquenios",
+         x="",
+         y="",
+         fill = "Defunciones") +
+    theme(
+        plot.title=element_text(size=18, hjust = 0.5,margin = margin(b = 10)),
+        plot.subtitle = element_text(size=16,hjust = 0.5,margin = margin(b = 15)),
+        panel.spacing = unit(1, "lines"),
+        panel.spacing.x = unit(0.5, "lines"),
+        panel.background = element_rect(fill = "white", colour = "white"),
+        strip.background = element_blank(),
+        strip.text = element_text(size=12, face='bold', hjust = 0.5, vjust = 3),
+        axis.ticks = element_blank(),
+        axis.text = element_text(size=10),
+        axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.key.size = unit(1.5, "lines")
+        
+    )
+```
+Se puede observar que, con el transcurso del tiempo, las enfermedades que afectan a diferentes grupos de edad no han variado significativamente. Sin embargo, se ha observado que algunas enfermedades han disminuido en su impacto, mientras que otras han ganado mayor relevancia. Para determinar con mayor precisión estos cambios, sería necesario realizar una investigación más exhaustiva.
+
+En particular, para las personas entre 1 y 74 años, los tumores son una enfermedad que representa un desafío importante en la reducción de defunciones. Por lo tanto, se debe prestar especial atención a esta enfermedad si se busca mejorar la salud y bienestar de este grupo etario.
+
+### ¿Existe algún tipo de relación entre el número de médicos y enfermeros en activo, y las defunciones por enfermedades en España?
+
+Continuamos con la búsqueda de algún tipo de relación entre el aumento de personal sanitario y las defunciones en España
+```{r fig.align = 'center'}
+Variacion_Defunciones_España_Edad %>%
+    filter(Edad == "Todas las edades") %>%
+  ggplot() +
+  geom_line(aes(x = Periodo, y = Variacion, color = "Defunciones")) +
+  geom_point(aes(x = Periodo, y = Variacion, color = "Defunciones"), 
+             size = 1.5) +
+  geom_line(data = Medicos_España, aes(x = Periodo, y = VariacionM, color = "Médicos Por 1000 Habitantes")) +
+  geom_point(data = Medicos_España, aes(x = Periodo, y = VariacionM, color = "Médicos Por 1000 Habitantes"), size = 1.5) +
+  geom_line(data = Enfermeros_España, aes(x = Periodo, y = VariacionE, color = "Enfermeros Por 1000 Habitantes")) +
+  geom_point(data = Enfermeros_España, aes(x = Periodo, y = VariacionE, color = "Enfermeros Por 1000 Habitantes"), size = 1.5) +
+  facet_wrap(~Edad) +
+  labs(title = "Tasa de variación a lo largo de los años",
+       x = "Año",
+       y = "Variacion relativa",
+       color = "Leyenda")+
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 11, face = "bold", hjust = 0.5)
+  ) +
+  scale_x_continuous(breaks = seq(2000, 2021, 3)) +
+  scale_y_continuous(breaks = seq(100,160,5))
+```
+
+Primero planteamos nuestra búsqueda con un carácter general, pero es complicado sacar algún tipo de conclusión que no parezca errónea de esta gráfica, pues si tomaramos estos resultados parecería que a mayor número de personal sanitario, más defunciones hay. Algo que no tendría mucho sentido. Cabe recalcar que aunque se vea que existe esta relación, no tiene porque ser causal, por lo que cualquier conclusión tomada de esta gráfica no serviría más que como una especulación.
+
+¿Y si lo separamos en grupos de edad?
+
+```{r fig.align = 'center', fig.width=10,fig.height=8}
+Variacion_Defunciones_España_Edad %>%
+    filter(Edad != "Todas las edades") %>%
+    mutate(Edad = factor(Edad, levels = c("Menos de 1 año","Jovenes (1-24 años)", "Adultos (25-49 años)", "Adultos mayores (50-74 años)", "Ancianos (75-94 años)", "95 y más años"))) %>%
+  ggplot() +
+  geom_line(aes(x = Periodo, y = Variacion, color = "Defunciones")) +
+  geom_point(aes(x = Periodo, y = Variacion, color = "Defunciones"), 
+             size = 1.5) +
+  geom_line(data = Medicos_España, aes(x = Periodo, y = VariacionM, color = "Médicos Por 1000 Habitantes")) +
+  geom_point(data = Medicos_España, aes(x = Periodo, y = VariacionM, color = "Médicos Por 1000 Habitantes"), size = 1.5) +
+  geom_line(data = Enfermeros_España, aes(x = Periodo, y = VariacionE, color = "Enfermeros Por 1000 Habitantes")) +
+  geom_point(data = Enfermeros_España, aes(x = Periodo, y = VariacionE, color = "Enfermeros Por 1000 Habitantes"), size = 1.5) +
+  facet_wrap(~Edad) +
+  labs(title = "Tasa de variación a lo largo de los años",
+       x = "Año",
+       y = "Variacion relativa",
+       color = "Leyenda")+
+  theme_minimal() +
+  theme(
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)
+  ) +
+  scale_x_continuous(breaks = seq(2000, 2021, 5)) +
+  scale_y_continuous(breaks = seq(50,400,50))
+```
+Al analizar la evolución del personal sanitario y las defunciones por grupos de edad, es posible observar relaciones que parecen tener sentido. En particular, se puede apreciar que para las personas menores de 74 años, un mayor número de médicos y enfermeros en activo parece estar relacionado con una disminución en las defunciones por enfermedades.
+
+Sin embargo, es importante tener en cuenta que esta es una observación preliminar y que para llegar a una conclusión sólida se necesitaría una investigación más profunda y detallada. Es posible que existan otros factores que influyan en esta relación, como la economía del país, la población, la natalidad, entre otros.
+
+### ¿Existe algún tipo de relación entre las defunciones por enfermedades en España, la natalidad, la población y la edad media?
+
+```{r include = FALSE}
+crear_grafica <- function(data, title, y) {
+  grafica <- data %>%
+    ggplot(aes(x=Periodo, y=Variacion) ) +
+    geom_point(color = 'azure4') +
+    geom_smooth(color = '#5367B1', alpha = 0.2) +
+    scale_fill_continuous(type = "viridis") +
+    labs(title = title,
+         y = y,
+         x = "Año") +
+    theme_minimal() +
+    theme(panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_line(linewidth = 0.5, color = "gray"),
+          plot.title = element_text(size = 12, face = "bold", hjust = 0.5)
+          ) +
+    scale_x_continuous(breaks = seq(2000,2021,3))
+  
+  return(grafica)
+}
+
+g1 = crear_grafica(Variacion_Defunciones_España_Periodo, "Defunciones", "Variación relativa") + labs(x = "")
+g2 = crear_grafica(Natalidad_España, "Natalidad", "") + labs(x = "")
+g3 = crear_grafica(Poblacion_España, "Población", "Variación relativa")
+g4 = crear_grafica(EMedia_España, "Edad Media", "")
+
+# Generar el grid 2x2 con los gráficos y la leyenda debajo
+grid <- grid.arrange(g1, g2, g3,g4, ncol=2)
+
+title <- ggdraw() +
+  draw_label("Variación relativa a partir del 2000",
+             fontface = "bold", # Negrita
+             size = 14) # Tamaño de fuente
+
+# Combinar la cuadrícula y el título
+ p = plot_grid(title, grid, ncol = 1, rel_heights = c(0.1, 0.9))
+```
+
+```{r fig.align = 'center'}
+p
+```
+
+En los gráficos anteriores podemos observar la variación relativa de 4 factores; Defunciones, edad media, nataliadad y población. Aunque a simple vista sea dificil encontrar las relaciones, existen, como podemos ver en el siguiente gráfico:
+```{r fig.align='center', fig.height= 8, fig.width=8}
+Variacion_Defunciones_España_Periodo_rev <- Variacion_Defunciones_España_Periodo %>%
+  mutate_all(rev)
+datos <- data.frame(Defunciones = Variacion_Defunciones_España_Periodo_rev$Variacion,
+                    EdadMedia= EMedia_España$Variacion,
+                    Poblacion = Poblacion_España$Variacion,
+                    Natalidad = Natalidad_España$Variacion)
+par(margin = c(2, 2, 2, 2))
+corrplot::corrplot(cor(datos, method = "pearson"), method = "circle", tl.cex = 0.8,
+                   tl.col = "black",addCoef.col = "orange")
+title("Matriz de correlación", line = 2.5, cex.main = 1.2)
+```
+Para analizar las relaciones entre los diferentes factores que influyen en las defunciones por enfermedades en España, decidimos realizar una matriz de correlación que nos permitiera comprender estas relaciones de manera más sencilla. En la matriz de correlación, se observaron varias relaciones interesantes, como las siguientes:
+
+Parece existir una relación directa fuerte entre la Edad Media y las Defunciones, lo que indicaría que a medida que aumente o disminuya una de estas variables, la otra también lo hará.
+
+Parece existir una relación inversa entre la natalidad y las defunciones, lo que indicaría que cuando una de estas variables disminuye, la otra aumenta. Esto refuerza nuestra teoría anterior, ya que una menor natalidad contribuye a aumentar la Edad Media de la población, sin tener en cuenta las migraciones.
+
+También parece no existir una relación significativa entre la natalidad y la población, lo que indica que aunque la tasa de natalidad disminuya, la población apenas varía. Esto podría deberse a un aumento en la inmigración hacia España.
+
+Tras comprobar estas relaciones, podemos concluir que el aumento de las defunciones por enfermedades en España puede deberse a una combinación de factores, como la disminución de la tasa de natalidad que se observa en el primer gráfico, junto con una población que no varía mucho, lo que contribuye que con el paso de los años aumente la Edad Media del país y, por lo tanto, el número de defunciones. Además, conforme avanza la edad, nuestro sistema inmunológico se debilita, lo que también puede contribuir a un mayor número de defunciones por enfermedades.
+
+### ¿Cómo se dispersan las enfermedades a lo largo de España? (Pregunta de extensión)
+
+```{r}
+Defunciones_CCAA <- read.csv2("./Datos/CCAA/Defunciones_CCAA.csv", fileEncoding="ISO-8859-3", sep=";")
+```
+
+```{r}
+get_id <- function(texto) {
+  primeros_digitos <- gsub("^0", "", substr(texto, 1, 2))
+  primeros_digitos <- as.numeric(primeros_digitos) - 1
+  return(primeros_digitos)
+}
+```
+
+```{r}
+Defunciones_CCAA = Defunciones_CCAA %>%
+    rename(id = "Comunidades.y.Ciudades.Autónomas") %>%
+    rename(Enfermedades = "Causa.de.muerte") %>%
+    filter(Periodo %in% c(2000, 2021)) %>%
+    mutate(id = get_id(id)) %>%
+    mutate(Enfermedades = str_remove(Enfermedades, ".*(?=\\.)\\.")) %>%
+    mutate(Enfermedades = str_remove(Enfermedades, ".*Enfermedades")) %>%
+    mutate(Enfermedades = gsub("^ de la\\s+|^ del\\s+|^ |,.*", "", Enfermedades)) %>%
+    mutate(Enfermedades = paste(toupper(substr(Enfermedades, 1, 1)), substr(Enfermedades, 2, nchar(Enfermedades)), sep = "")) %>%
+    group_by(id, Periodo) %>%
+    mutate(Enfermedad_Max = Enfermedades[which.max(Total)]) %>%
+    summarise(Defunciones = sum(Total), Enfermedad_Max = first(Enfermedad_Max)) %>%
+    ungroup()
+```
+
+```{r}
+Poblacion_CCAA <- read.csv2("./Datos/CCAA/Población_CCAA.csv", fileEncoding="ISO-8859-3", sep=";")
+```
+
+```{r}
+Poblacion_CCAA = Poblacion_CCAA %>%
+  rename(id = "Comunidades.y.Ciudades.Autónomas")  %>%
+  filter(Periodo %in% c(2000, 2021)) %>%
+  select(id,Total, Periodo) %>%
+  mutate(id = get_id(id)) %>%
+  rename(Poblacion = "Total")
+```
+
+```{r}
+EMedia_CCAA <- read.csv2("./Datos/CCAA/EMedia_CCAA.csv", fileEncoding="ISO-8859-3", sep=";")
+```
+
+```{r}
+EMedia_CCAA = EMedia_CCAA %>%
+  rename(id = "Comunidades.y.Ciudades.Autónomas")  %>%
+  filter(Periodo %in% c(2000, 2021)) %>%
+  select(id,Total, Periodo) %>%
+  mutate(id = get_id(id)) %>%
+  rename(EMedia = "Total")
+```
+
+```{r results='hide'}
+# Guardamos el archivo shapefile
+shapefile_ccaa <- readOGR("./Datos/CCAA/Comunidades_Autonomas_ETRS89_30N.shp")
+
+# Para convertir el archivo shapefile en un dataframe utilizamos la función tidy()
+data_ccaa <- tidy(shapefile_ccaa)
+```
+
+```{r}
+# Cargamos los nombres
+nombres_ccaa <- data.frame(shapefile_ccaa$Texto)
+# Conseguimos las ids
+nombres_ccaa$id <- as.character(seq(0, nrow(nombres_ccaa)-1))
+```
+
+```{r}
+# Unimos ambos dataframes por id
+data_ccaa_mapa <- data_ccaa %>%
+  left_join(nombres_ccaa, by = "id") %>%
+  rename(CCAA = "shapefile_ccaa.Texto")
+```
+
+```{r}
+data_ccaa_mapa$id = as.numeric(data_ccaa_mapa$id)
+
+data_ccaa_mapa <- data_ccaa_mapa %>%
+  left_join(Poblacion_CCAA, by = "id")
+
+data_ccaa_mapa <- data_ccaa_mapa %>%
+  left_join(Defunciones_CCAA, by = c("id","Periodo")) %>%
+  left_join(EMedia_CCAA, by = c("id","Periodo")) %>%
+  mutate(Ratio_defunciones = Defunciones / as.numeric(gsub("\\.", "", Poblacion)) * 1000)
+```
+
+```{r}
+crear_mapa_ccaa <- function() {
+  mapa_ccaa <- data_ccaa_mapa %>%
+    ggplot() +
+    geom_polygon(aes(x= long, y = lat, group = group, fill = Ratio_defunciones, 
+                     text=sprintf("CCAA: %s<br>Población: %s<br>Defunciones Totales: %s<br>Enfermedad: %s<br>Edad Media: %s<br>Ratio defunción/población (1000 Habitantes): %s", CCAA, Poblacion, Defunciones, Enfermedad_Max, round(EMedia), round(Ratio_defunciones))),
+                 color = "black",
+                 size = 0.05) +
+    scale_fill_viridis(name = "Defunciones \n(1000 habitantes)", option = "viridis", discrete = FALSE, direction = -1) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(hjust = 0.5),
+      axis.line = element_blank(),
+      axis.text = element_blank(),
+      axis.title = element_blank(),
+      axis.ticks = element_blank(),
+      plot.background = element_blank(),
+      panel.background = element_blank(),
+      legend.position = "bottom", 
+      legend.box = "horizontal", 
+      legend.margin = margin(t = 50)
+    ) +
+    labs(
+      title = "España en datos",
+      caption = "Crédito: Ricardo Cárdenes y Óscar Rico\nFuente: INE"
+    ) +
+    facet_wrap(~Periodo)
+  
+  return(mapa_ccaa)
+}
+```
+
+```{r}
+mapa_ccaa_2000 <- crear_mapa_ccaa()
+```
+
+```{r}
+mapa_ccaa_2000 <- config(ggplotly(mapa_ccaa_2000, tooltip = c("text")), scrollZoom = TRUE, modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d"))
+```
+
+```{r fig.align = 'center', fig.width=10, fig.height=6}
+mapa_ccaa_2000
+```
+
+Este gráfico lo usamos como resumen de todo lo que hemos investigado en este trabajo, puediendo observarse como a medida que pasan los años la edad media sube, aunque las defunciones no crecen tanto, lo que podría representar una mejora en el personal sanitario.
+
+## Canarias
+
+### Fuentes de datos
+
+<br>
+Los datasets con los que estaremos trabajando a lo largo de este apartado son los siguientes:
+
+- [Defunciones de residentes según sexos, grupos de edad y causas de muerte (grandes grupos de CIE-10). Islas y años, 2021](http://www.gobiernodecanarias.org/istac/jaxi-istac/menu.do?uripub=urn:uuid:6fcd3c3d-3b28-4f06-b357-4b86a87d5da1) (Principal): nos proporciona información detallada sobre el número de defunciones registradas en el archipiélago Canario derivadas de diversas enfermedades. Este conjunto de datos abarca un periodo de tiempo desde el año 2002 hasta el 2021 e incluye desgloses por isla. (Apartado 02 del enlace vinculado)
+
+- [Población según sexos y nacionalidades. Islas de Canarias y años, 2022](http://www.gobiernodecanarias.org/istac/jaxi-istac/tabla.do?uripx=urn:uuid:4250d46a-490f-4d0c-9976-77bc7118589d): Utilizaremos datos del censo de Canarias que nos dan información sobre el número de habitantes de las diferentes islas del archipiélago cada año.
+
+- [Edades medias de la población. Municipios por islas de Canarias y años, 2023](http://www.gobiernodecanarias.org/istac/jaxi-istac/tabla.do?uripx=urn:uuid:68b2e275-08f9-46ed-80a9-ff1b759f97a2): Dataset de la edad media de la población de cada una de las islas por año.
+
+- [Tasas brutas de natalidad según islas de Canarias de residencia de las madres por años, 2023](http://www.gobiernodecanarias.org/istac/jaxi-istac/tabla.do?uripx=urn:uuid:1253f5af-f121-49a7-9f97-fd4147082e9b): Dataset de la natalidad de las islas por años.
+
+Todos los conjuntos de datos con los que hemos trabajado en este apartado han sido obtenidos directamente del Instituto Canario de Estadística (ISTAC), la ser la institución que maneja los datos de esta zona con un mayor nivel de especialización. El único problema es que el ISTAC muchas veces no proporciona los datos en un formato válido para trabajar con ggplot2. Es por lo que, se hace indispensable un apartado de limpieza de datos, dedicado única y exclusivamente a la limpieza y transformación de los dataframes principales
+
+<br>
+<br>
+
+### Limpieza de datos
+
+<br>
+La motivación detrás de este análisis radica en examinar y comprender las tendencias de mortalidad por enfermedad en Canarias a lo largo de estos años, así como identificar posibles patrones o variaciones en el número de defunciones según las diferentes islas. Este estudio puede proporcionar información relevante para la planificación de políticas de salud y el diseño de estrategias de prevención y atención médica en la región.
+<br>
+
+<!-- Datos principales (Defunciones por enfermedad) -->
+
+```{r}
+setwd("./")
+datos_lz = read_excel("datos/canarias/lz.xls")
+datos_ft = read_excel("datos/canarias/ft.xls")
+datos_gc = read_excel("datos/canarias/gc.xls")
+datos_tf = read_excel("datos/canarias/tf.xls")
+datos_gm = read_excel("datos/canarias/gm.xls")
+datos_pm = read_excel("datos/canarias/pm.xls")
+datos_hi = read_excel("datos/canarias/hi.xls")
+```
+
+```{r}
+tipos_enfermedad = c(1, 12, 46, 49, 52, 57, 61, 71, 78, 84, 86, 90)
+nombres = c('ENF. INFECCIOSAS Y PARASITARIAS', 
+            'TUMORES [NEOPLASIAS]', 
+            'ENF. SÁNGRE Y ÓRG. HEMATOPOYÉTICOS', 
+            'ENF. ENDOCRINAS Y METABÓLICAS', 
+            'TRASTORNOS MENTALES Y DEL COMPORTAMIENTO',
+            'ENF. DEL SISTEMA NERVIOSO',
+            'ENF. DEL SISTEMA CIRCULATORIO',
+            'ENF. DEL SISTEMA RESPIRATORIO',
+            'ENF. DEL SISTEMA DIGESTIVO', 
+            'ENF. DE PIEL Y TEJIDO SUBCUTÁNEO', 
+            'ARTROPATÍAS',
+            'ENF. DEL SISTEMA GENITOURINARIO', 
+            'EMBARAZO, PARTO Y PUERPERIO',
+            'AFEC. EN PERIODO PERINATAL', 
+            'MALFORMACIONES',
+            'SÍNTOMA Y HALLAZGOS NO IDENTÍFICADOS', 
+            'CAUSAS EXTERNAS DE MORBILIDAD Y DE MORTALIDAD')
+```
+
+<br>
+En los datos que uno obtiene del Istac, si estos reflejan series temporales a lo largo de los años, las columnas del dataset se encuentran organizadas de manera que cada una de ellas representa un año específico, y contiene por tanto el número de defunciones para ese año en una isla determinada en nuestro caso. Esta estructura dificulta el análisis y manipulación de los datos, ya que resulta más conveniente tener una única columna para los años y otra para las islas, con los correspondientes valores de defunciones. Quizás lo único bueno que presenta este dataset es que proporciona una columna específica para el tipo de enfermedad, lo que facilita en cierta medida el proceso de análisis.
+
+Para abordar estos problemas, será necesario realizar una serie de transformaciones en el dataset. Esto incluirá la reestructuración de las columnas para que haya una única columna para los años y otra para las islas, y la maquetación adecuada de la columna que nos indica el tipo de enfermedad asociada a cada registro de defunción, como puede ser modificar el nombre de diversas enfermedades o descartar algunas que no nos interesan.
+
+```{r}
+for (i in 1:length(tipos_enfermedad)) {
+  datos_lz[tipos_enfermedad[i],1] = nombres[i]
+  datos_ft[tipos_enfermedad[i],1] = nombres[i]
+  datos_gc[tipos_enfermedad[i],1] = nombres[i]
+  datos_tf[tipos_enfermedad[i],1] = nombres[i]
+  datos_gm[tipos_enfermedad[i],1] = nombres[i]
+  datos_pm[tipos_enfermedad[i],1] = nombres[i]
+  datos_hi[tipos_enfermedad[i],1] = nombres[i]
+}
+
+kable(head(datos_gc))
+```
+
+```{r}
+colnames(datos_lz)[1] = 'Enfermedad'
+colnames(datos_ft)[1] = 'Enfermedad'
+colnames(datos_gc)[1] = 'Enfermedad'
+colnames(datos_tf)[1] = 'Enfermedad'
+colnames(datos_gm)[1] = 'Enfermedad'
+colnames(datos_pm)[1] = 'Enfermedad'
+colnames(datos_hi)[1] = 'Enfermedad'
+```
+
+Además, se llevará a cabo la combinación de los diferentes datasets correspondientes de cada isla, pues el Istac no te permite descargar más de 5000 datos y, por tanto, debemos de descargar los datos de cada isla por separado. Debido a las diversas complicaciones comentadas, no es posible utilizar funciones de join ya incluidas en la librería tidyverse para ello.
+<br>
+
+```{r}
+año_ind = c()
+for (i in seq(2021, 1999, -1)) {
+  año_ind = c(año_ind, rep(i, length(tipos_enfermedad)))
+}
+
+islas = c("Lanzarote", "Fuerteventura", "Gran Canaria",
+                 "Tenerife", "La Gomera", "La Palma", "El Hierro")
+
+años = rep(año_ind, length(islas))
+
+data = data.frame(año = años)
+
+isla_column = c()
+
+for (isla in islas) {
+  isla_column = c(isla_column, rep(isla, length(año_ind)))
+}
+```
+
+```{r}
+obtener_total = function(dataset, indices) {
+  def = c()
+  for (name in colnames(dataset)[2:length(dataset[1,])]) {
+    defunciones_año = as.numeric(pull(dataset[indices,], name))
+    def = c(def, defunciones_año)
+  }
+  
+  return(def)
+}
+```
+
+```{r}
+enf = c()
+def = c()
+
+enf = c(enf, as.character(rep(rep(nombres[1:length(tipos_enfermedad)], 23), length(islas))))
+
+def = c(def, obtener_total(datos_lz, tipos_enfermedad))
+def = c(def, obtener_total(datos_ft, tipos_enfermedad))
+def = c(def, obtener_total(datos_gc, tipos_enfermedad))
+def = c(def, obtener_total(datos_tf, tipos_enfermedad))
+def = c(def, obtener_total(datos_gm, tipos_enfermedad))
+def = c(def, obtener_total(datos_pm, tipos_enfermedad))
+def = c(def, obtener_total(datos_hi, tipos_enfermedad))
+
+data$enfermedad = enf
+data$total = def
+data$isla = isla_column
+```
+
+<br>
+Este proceso de limpieza y transformación de datos nos permite obtener un dataset más estructurado y adecuado para el posterior análisis y visualización de las tendencias de mortalidad en las distintas islas de Canarias. Hecho esto, procedemos a importar los datos de población por islas para cada año, también obtenidos del Istac. Aplicaremos la misma técnica para pasar de un dataframe con varias columnas por años para mostrar los datos del censo de cada isla a uno con una única columna con que recoja toda esta información, añadiendo una variable adicional que indique el año de la medición. Una vez hecho esto, y con todos los datasets en un mismo formato, si somos capaces de unir los datos de defunciones con los poblacionales con las técnicas que nos ofrece la librería dplyr.
+<br>
+
+<!-- Datos poblacionales -->
+
+```{r}
+poblacion <- read_excel("./datos/poblacion.xls")
+poblacion$isla = islas
+```
+
+```{r}
+isla_column = c()
+años = c()
+pob = c()
+n = length(colnames(poblacion))
+
+for (i in 1:length(islas)) {
+  poblacion[islas[i], 2:n]
+  isla_column = c(isla_column, 
+      rep(
+        islas[i],
+        length(colnames(poblacion)) - 1
+      )
+    )
+  
+  pob = c(pob, obtener_total(poblacion, c(i)))
+  años = c(años, seq(2021, 1991, -1))
+}
+
+poblacion_f = data.frame(isla = isla_column, año = años, poblacion = pob)
+```
+
+```{r}
+poblacion_f$poblacion  = as.numeric(poblacion_f$poblacion)
+data = data %>%
+  left_join(poblacion_f, by=c('año', 'isla')) %>%
+  mutate(porcentaje = total/poblacion * 100)
+```
+
+```{r}
+gc_tf = data %>%
+  filter(isla == 'Gran Canaria' | isla == 'Tenerife')
+```
+
+
+<!-- Datos de natalidad -->
+
+```{r}
+natalidad <- read_excel("./datos/natalidad.xls")
+```
+
+```{r}
+to_int <- function(df, columnas) {
+  df <- as.data.frame(df)
+  df[,columnas] <-  sapply(df[,columnas], as.integer)
+  return(df)
+}
+
+to_double <- function(df, columnas) {
+  df <- as.data.frame(df)
+  df[,columnas] <-  sapply(df[,columnas], as.double)
+  return(df)
+}
+```
+
+```{r}
+for (isla in colnames(natalidad)) {
+  natalidad[,isla] = to_int(natalidad[,isla])
+}
+
+# Formato año-isla
+años = c(rep(seq(2021, 1999, -1), 7))
+nat = obtener_total(natalidad, 1:23)
+isla_column = c()
+
+for (isla in islas) {
+  isla_column = c(isla_column, rep(isla, length(años)/7))
+}
+
+natalidad = data.frame(año = años, isla = isla_column, natalidad = nat)
+```
+
+
+<!-- Paleta de colores -->
+
+```{r}
+# Definimos la paleta de colores que usaremos para la leyenda
+color_palette <- c("ENF. INFECCIOSAS Y PARASITARIAS" = "#B5D4E9",
+                   "TUMORES [NEOPLASIAS]" = "#8DA5BF",
+                   "ENF. SÁNGRE Y ÓRG. HEMATOPOYÉTICOS" = "#8EBBCE",
+                   "ENF. ENDOCRINAS Y METABÓLICAS" = "#7BAFC6",
+                   "TRASTORNOS MENTALES Y DEL COMPORTAMIENTO" = "#606DA0",
+                   "ENF. DEL SISTEMA NERVIOSO" = "#53384A",
+                   "ENF. DEL SISTEMA CIRCULATORIO" = "#4288A1",
+                   "ENF. DEL SISTEMA RESPIRATORIO" = "#BDC6E7",
+                   "ENF. DEL SISTEMA DIGESTIVO" = "#806F7A",
+                   "ENF. DE PIEL Y TEJIDO SUBCUTÁNEO" = "#096079",
+                   "ARTROPATÍAS" = "#084C65",
+                   "ENF. DEL SISTEMA GENITOURINARIO" = "#7B86B0",
+                   "EMBARAZO, PARTO Y PUERPERIO" = "#032F3E",
+                   "AFEC. EN PERIODO PERINATAL" = "#021F2B",
+                   "MALFORMACIONES" = "#010E17",
+                   "SÍNTOMA Y HALLAZGOS NO IDENTÍFICADOS" = "#A5A5A5",
+                   "CAUSAS EXTERNAS DE MORBILIDAD Y DE MORTALIDAD" = "#FFFFFF")
+```
+
+
+<!-- Datos Geográficos -->
+
+```{r results = 'hide'}
+shapefile_ccaa = readOGR("datos/gobcan/municipios.shp", encoding = 'UTF-8')
+poblacion <- read_excel("datos/poblacion.xls")
+
+data_ccaa = tidy(shapefile_ccaa)
+```
+
+```{r, fig.align='center'}
+data_ccaa = data_ccaa %>%
+  mutate(isla = case_when(
+    long < 250000 & lat < 3100000 ~ 'El Hierro',
+    long < 250000 ~ 'La Palma',
+    long < 300000 ~ 'La Gomera',
+    long < 400000 ~ 'Tenerife',
+    long < 500000 ~ 'Gran Canaria',
+    lat < 3185000 ~ 'Lanzarote',
+    TRUE ~ 'Fuerteventura'
+  ))
+```
+
+<br>
+<br>
+
+### Enfermedades que más afectan en Canarias
+
+<br>
+Este sección del apartado de Canarias tiene como objetivo mostrar las enfermedades que mas defunciones provocan en las islas, y se estudia tanto su presencia en todo el archipiélago, como su impacto en las islas capitalinas por separado. Procedemos así con dos tipos de gráficos que nos dan información sobre la variabilidad de las defunciones por enfermedad y sobre el porcentaje de la población que muere por cada una de ellas, respectivamente. A continuación, se muestran las gráficas escogidas, por representar muy fielmente los datos.
+<br>
+
+```{r}
+# Escogemos los datos de 2021 y, para cada isla, obtenemos un ranking de enfermedades
+d = data %>%
+  filter(año == 2021)
+
+# Variable que define el ranking de cada isla
+d$pos = NA
+
+# Gran Canaria
+ord_gc = order(d$total[d$isla == 'Gran Canaria'], decreasing = TRUE)
+n = length(row.names(d[d$isla == 'Gran Canaria',][ord_gc,]))
+d$pos[d$isla == 'Gran Canaria'][ord_gc] = seq(1, n, 1)
+
+
+# Fuerteventura
+ord = order(d$total[d$isla == 'Fuerteventura'], decreasing = TRUE)
+n = length(row.names(d[d$isla == 'Fuerteventura',][ord,]))
+d$pos[d$isla == 'Fuerteventura'][ord] = seq(1, n, 1)
+
+
+# Lanzarote
+ord = order(d$total[d$isla == 'Lanzarote'], decreasing = TRUE)
+n = length(row.names(d[d$isla == 'Lanzarote',][ord,]))
+d$pos[d$isla == 'Lanzarote'][ord] = seq(1, n, 1)
+
+
+# Tenerife
+ord = order(d$total[d$isla == 'Tenerife'], decreasing = TRUE)
+n = length(row.names(d[d$isla == 'Tenerife',][ord,]))
+d$pos[d$isla == 'Tenerife'][ord] = seq(1, n, 1)
+
+
+# La Palma
+ord = order(d$total[d$isla == 'La Palma'], decreasing = TRUE)
+n = length(row.names(d[d$isla == 'La Palma',][ord,]))
+d$pos[d$isla == 'La Palma'][ord] = seq(1, n, 1)
+
+
+# La Gomera
+ord = order(d$total[d$isla == 'La Gomera'], decreasing = TRUE)
+n = length(row.names(d[d$isla == 'La Gomera',][ord,]))
+d$pos[d$isla == 'La Gomera'][ord] = seq(1, n, 1)
+
+
+# El Hierro
+ord = order(d$total[d$isla == 'El Hierro'], decreasing = TRUE)
+n = length(row.names(d[d$isla == 'El Hierro',][ord,]))
+d$pos[d$isla == 'El Hierro'][ord] = seq(1, n, 1)
+```
+
+```{r, fig.width=10, fig.height=5, fig.align='center'}
+# Gráfico top 4 enfermedades de las Palmas
+lp = d %>%
+  filter(pos <= 5) %>%
+  filter(isla == 'Gran Canaria' | isla == 'Fuerteventura' | isla == 'Lanzarote') %>%
+  ggplot(aes(x = pos, y = porcentaje, fill=enfermedad, group=isla)) +
+  geom_col(position = 'dodge', color='white') +
+  labs(title='Provincia de las Palmas ',
+       subtitle = 'Lanzarote, Gran Canaria y Fuerteventura ') +
+  geom_text(aes(y = -0.0001, label=paste0(isla)),
+            color='black',
+            hjust=1,
+            position = position_dodge(0.9),
+            angle=0,
+            size=4.0) +
+  scale_y_continuous(expand = c(0.2,0,0,0)) +
+  theme(
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+    panel.grid.major.x = element_line(color='azure2'),
+    axis.text.x = element_blank(),
+    plot.title = element_text(hjust=1),
+    plot.subtitle = element_text(hjust=1)) +
+  scale_fill_manual(values = color_palette) +
+  coord_flip()
+
+lp = lp + theme(legend.position = 0)
+```
+
+```{r, fig.width=10, fig.height=5, fig.align='center'}
+# Gráfico top 4 enfermedades de Santa Cruz de Tenerife
+st = d %>%
+  filter(pos <= 5) %>%
+  filter(isla == 'Tenerife' | isla == 'La Palma' | isla == 'La Gomera' | isla == 'El Hierro') %>%
+  ggplot(aes(x = pos, y = porcentaje, fill=enfermedad, group=isla)) +
+  geom_col(position = 'dodge', color='white') +
+  labs(title=' Provincia de Santa Cruz de Tenerife',
+       subtitle = ' Tenerife, la Palma, la Gomera y el Hierro') +
+  geom_text(aes(y = -0.0001, label=paste0(isla)),
+            color='black',
+            hjust=1,
+            position = position_dodge(0.9),
+            angle=0,
+            size=4.0) +
+  scale_y_continuous(expand = c(0.2,0,0,0)) +
+  theme(
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+    panel.grid.major.x = element_line(color='azure2'),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    legend.direction = "horizontal",
+    plot.title = element_text(hjust=0),
+    plot.subtitle = element_text(hjust=0)) +
+  scale_fill_manual(values = color_palette) +
+  coord_flip()
+```
+
+```{r, fig.width=16, fig.height=7}
+leyenda = get_legend(st)
+# Mostramos ambas gráficas en un grid 1x2
+provincias = grid.arrange(lp, 
+             st + theme(legend.position = 0), 
+             ncol=2,
+             top = "Porcentaje de defunciones por población insular\n",
+             bottom=leyenda)
+
+ggsave("images/provincias.png", plot = provincias, device = "png")
+```
+
+<br>
+<br>
+
+```{r fig.align='center'}
+data_2021 = data %>%
+  group_by(año, enfermedad) %>%
+  filter(isla == 'Gran Canaria' | isla == 'Tenerife') %>%
+  summarise(media = round(mean(total))) %>%
+  filter(año == 2021)
+
+ord = order(data_2021$media)
+data_2021 = data_2021[ord,]
+
+plot1 = data_2021 %>% 
+  ggplot(aes(x = factor(enfermedad, levels = (unique(enfermedad))), y = media, fill= enfermedad)) +
+  geom_col() +
+  labs(title='Media de defunciones por enfermedad (2021)',
+       subtitle = 'en islas capitalinas') +
+  theme(
+    legend.position = 0,
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+    panel.grid.major.x = element_line(color='azure2')) +
+  coord_flip() +
+  scale_fill_manual(values = color_palette) 
+
+plot1
+```
+
+<br>
+<br>
+
+```{r}
+data_2021 = data %>%
+  group_by(enfermedad) %>%
+  filter(isla == 'Gran Canaria' | isla == 'Tenerife') %>%
+  summarise(media = round(mean(total)))
+
+ord = order(data_2021$media)
+data_2021 = data_2021[ord,]
+
+plot2 = data_2021 %>% 
+  ggplot(aes(x = factor(enfermedad, levels = (unique(enfermedad))), y = media, fill= enfermedad)) +
+  geom_col() +
+  labs(title='Media de defunciones por enfermedad (desde 2002)',
+       subtitle = 'en islas capitalinas') +
+  theme(
+    legend.position = 0,
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+    panel.grid.major.x = element_line(color='azure2')) +
+  coord_flip() +
+  scale_fill_manual(values = color_palette) 
+```
+
+```{r fig.height=6, fig.width=16, include=FALSE}
+grid.arrange(plot1, plot2, ncol=2)
+```
+
+<br>
+Esta sección nos ha permitido responder a la pregunta de cuál, he incluso cuales, son las enfermedades que más afectan a las islas, concluyendo que se trata de aquellas relacionadas con el sistema circulatorio y con tumores o neoplasias. Las siguientes gráficas aportan un elemento visual para comparar la variabilidad de sus defunciones.
+<br>
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+var1 = gc_tf %>%
+  ggplot(aes(x = total, y = enfermedad, fill = enfermedad)) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  labs(title = 'Defunciones por enfermedad',
+       subtitle = 'A lo largo de los años. Islas capitalinas') +
+  theme_minimal() +
+    theme(
+      legend.position="none",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8),
+      axis.title.y = element_blank()
+    ) +
+  scale_fill_viridis_d()
+```
+
+```{r, fig.width=7, fig.height=4, fig.align='center'}
+var2 = gc_tf %>%
+  filter(enfermedad %in% nombres[c(2,7,8)]) %>%
+  ggplot(aes(x = total, y = enfermedad, fill = ..x..)) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis(name = "Defunciones", option = "I") +
+  labs(title = 'Defunciones por enfermedades principales',
+       subtitle = 'En las islas capitalinas') +
+  theme_minimal() +
+    theme(
+      legend.position="none",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8),
+      axis.title.y = element_blank()
+    )
+```
+
+```{r, fig.width=20, fig.height=6, fig.align='center'}
+gr = grid.arrange(var2, var1, ncol=2)
+ggsave('images/slope.png', gr)
+```
+
+<br>
+<br>
+<br>
+
+### Evolución de las distintas enfermedades en el tiempo
+
+<br>
+No es casualidad que las enferemdades infecciosas o parasitarias hayan subido un par de puestos este "último" año. El mundo sigue actualmente recuperandose de la pandemia que comenzaba en China a finales del 2019 producida por el Coronavirus. Para este caso, es evidente que el 2020 fue un año de crecimiento en las defunciones de este tipo de enfermedades pero, ¿qué pasa con el resto de enfermedades? 
+
+Existen diversas formas de estudiar la tasa de defunciones de una enfermedad de una manera visual.En esta sección concretamente estudiamos la evolución de las diversas enfermedades, y encontramos patrones de crecimiento en las defunciones que nos hacen plantearnos las posibles relaciones existentes entre la población, natalidad y defunciones.
+<br>
+
+```{r}
+gc_tf = data %>%
+  filter(isla == 'Tenerife' | isla == 'Gran Canaria')
+```
+
+```{r, fig.width=13, fig.height=10}
+ord = order((gc_tf %>%
+  group_by(enfermedad, año) %>%
+  mutate(media=mean(total)))$media, decreasing = TRUE)
+
+gc_tf[ord,] %>%
+  ggplot(aes(x=año, y=total, color=isla)) +
+  geom_point() +
+  geom_line() +
+  labs(title='Defunciones por enfermedad',
+       subtitle = 'en islas capitalinas',
+       x='Año',
+       y='Defunciones') +
+  facet_wrap(~factor(enfermedad, levels = (unique(enfermedad)))) +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust = 0.5, size = 18),
+    plot.subtitle = element_text(hjust = 0.5, size = 12))
+  
+ggsave('images/evolucion_cap.png')
+```
+
+<br>
+<br>
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Porcentaje de defunciones por enfermedad
+enf = gc_tf %>%
+  group_by(enfermedad) %>%
+  summarise(total = sum(total))
+
+def_2 = sum(enf$total[enf$enfermedad == 'TUMORES [NEOPLASIAS]' | enf$enfermedad == 'ENF. DEL SISTEMA CIRCULATORIO'])
+def_2/sum(enf$total)
+```
+
+```{r, fig.width=13, fig.height=8, fig.align='center'}
+gc_tf = data %>%
+  filter(isla == 'Tenerife' | isla == 'Gran Canaria')
+
+ord = order((gc_tf %>%
+  group_by(enfermedad, año) %>%
+  mutate(media=mean(total)))$media, decreasing = TRUE)
+
+gc_tf[ord,] %>%
+  ggplot(aes(x=año, y=total, color=isla)) +
+  geom_point() +
+  geom_line() +
+  labs(title='Defunciones por enfermedad',
+       subtitle = 'en islas capitalinas',
+       x='Año',
+       y='Defunciones') +
+  facet_wrap(~factor(enfermedad, levels = (unique(enfermedad))), scales = 'free_y') +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust = 0.5, size = 18),
+    plot.subtitle = element_text(hjust = 0.5, size = 12))
+  
+ggsave('images/evolucion_free.png')
+```
+
+<br>
+<br>
+
+```{r}
+get_legend <- function(plot) {
+  if (!inherits(plot, "ggplot")) stop("Object is not a ggplot!")
+  
+  g <- ggplotGrob(plot)
+  leg <- g$grobs[[which(g$layout$name == "guide-box")]]
+  
+  return(leg)
+}
+```
+
+
+```{r, fig.height=6, fig.width=7, fig.align='center'}
+slope_tm = data %>%
+  filter(enfermedad == nombres[2]) %>%
+  filter(año %in% c(2002, 2021, 2011)) %>%
+  ggplot(aes(x = as.factor(año), y = total, group = isla, color=isla)) +
+  geom_line(size = 1) +
+  geom_point(size = 4, alpha = 0.7) +
+  ylab("Defunciones") +
+  labs(title = "Defunciones por tumores o neoplasias",
+       subtitle = "Evolución por décadas") +
+  scale_x_discrete(breaks=c(2002, 2011, 2021), expand = c(0.02, 0, 0.02, 0)) +
+  theme(axis.title.x = element_blank(),
+        legend.position = 0)
+
+slope_sc = data %>%
+  filter(enfermedad == nombres[7]) %>%
+  filter(año %in% c(2002, 2021, 2011)) %>%
+  ggplot(aes(x = as.factor(año), y = total, group = isla, color=isla)) +
+  geom_line(size = 1) +
+  geom_point(size = 4, alpha = 0.7) +
+  ylab("") +
+  labs(title = "Defunciones por enf. del sistema circulatorio",
+       subtitle = "Evolución por décadas") +
+  scale_x_discrete(breaks=c(2002, 2011, 2021), expand = c(0.02, 0, 0.02, 0)) +
+  theme(axis.title.x = element_blank(),
+        legend.direction = "horizontal")
+
+leyenda = get_legend(slope_sc)
+gr = grid.arrange(slope_tm, slope_sc + theme(legend.position = 0), ncol=2, bottom=leyenda)
+ggsave('images/slope.png', gr)
+```
+
+<br>
+<br>
+<br>
+
+### Población y natalidad en relación con el número de defunciones
+
+<br>
+Lo lógico en un problema de esta índole es anailzar como es la población de las islas. No nos sirve de nada saber como aumentan las defunciones sin tener en cuenta la población. Para ello, centrándonos en el caso de las enfermedades del sistema circulatorio, analizamos su evolución más detenidamente, buscando representar la relación no solo entre las defunciones y el año, sino con la población, en gráficas legibles y fáciles de entender. En este apartado conseguimos responder a la pregunta de a qué se debe el aumento en las defunciones de las distintas enfermedades, pese a haber un mayor número de personal sanitario.
+<br>
+
+```{r, fig.height=4, fig.align='center'}
+plot_circulatorio = gc_tf %>%
+  filter(enfermedad == 'ENF. DEL SISTEMA CIRCULATORIO') %>%
+  ggplot(aes(x=año, y=total)) +
+  geom_point(aes(color=isla)) +
+  geom_line(aes(color=isla)) +
+  labs(title='Número total de defunciones',
+       subtitle = 'Enfermedades del sistema circulatorio',
+       x='Año',
+       y='Defunciones') +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust=0.5),
+    plot.subtitle = element_text(hjust=0.5)) 
+  
+plot_circulatorio
+```
+
+<br>
+<br>
+
+```{r}
+# Gráfica de defunciones en función de la población
+plot_circulatorio_per = gc_tf %>%
+  filter(enfermedad == 'ENF. DEL SISTEMA CIRCULATORIO') %>%
+  ggplot(aes(x=año, y=porcentaje)) +
+  geom_point(aes(color=isla)) +
+  geom_line(aes(color=isla)) +
+  labs(title='Porcentaje de defunciones por población',
+       x='Año',
+       y='Defunciones') +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust=0.5),
+    plot.subtitle = element_text(hjust=0.5),
+    legend.position = 0) 
+```
+
+```{r}
+# Gráfica de la población
+plot_poblacion = gc_tf %>%
+  filter(enfermedad == 'ENF. DEL SISTEMA CIRCULATORIO') %>%
+  ggplot(aes(x=año, y=poblacion)) +
+  geom_point(aes(color=isla)) +
+  geom_line(aes(color=isla)) +
+  labs(title='Evolución de la población por años',
+       x='Año',
+       y='Población') +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust=0.5),
+    plot.subtitle = element_text(hjust=0.5),
+    axis.title.x = element_blank(),
+    legend.position = 0) 
+```
+
+<br>
+<br>
+
+```{r, fig.width=13, fig.height=9}
+plot_circulatorio = plot_circulatorio +
+               theme(legend.position = c(0.5, -0.7)) +
+  guides(color = guide_legend(title = "", direction = "horizontal"))
+
+top_margin <- unit(20, "lines")
+bottom_margin <- unit(2, "lines")
+grid_plot = grid.arrange(plot_poblacion, plot_circulatorio, plot_circulatorio_per, ncol=2, nrow=2, top = "ENFERMEDADES DEL SISTEMA CIRCULATORIO\nen islas capitalinas\n")
+ggsave("images/grid_plot.png", grid_plot, width = 13, dpi = 300)
+```
+
+<br>
+<br>
+
+```{r, fig.width=10, fig.height=5}
+# Gráficas individual que usaremos en el futuro
+gc = data %>%
+  filter(isla == 'Gran Canaria') %>%
+  group_by(año) %>%
+  summarise(total = mean(porcentaje)) %>%
+  ggplot(aes(x=año, y=total) ) +
+  geom_point(color = 'azure4') +
+  geom_smooth(color = '#5367B1', alpha = 0.2) +
+  scale_fill_continuous(type = "viridis") +
+  labs(title = "Defunciones según el número de habitantes",
+       subtitle = "Gran Canaria",
+       y = "Defunciones",
+       x = "Año") +
+  theme_minimal()
+
+# Gráfica Global
+data %>%
+  mutate(provincia = case_when(
+    isla == 'Lanzarote' ~ 'LAS PALMAS',
+    isla == 'Fuerteventura' ~ 'LAS PALMAS',
+    isla == 'Gran Canaria' ~ 'LAS PALMAS',
+    isla == 'Tenerife' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'La Gomera' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'La Palma' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'El Hierro' ~ 'SANTA CRUZ DE TENERIFE'
+  )) %>%
+  group_by(año, poblacion, isla, provincia) %>%
+  summarise(total = sum(total)) %>%
+  group_by(año, provincia) %>%
+  mutate(poblacion = sum(poblacion)) %>%
+  mutate(total = sum(total)) %>%
+  summarise(per = min(total/poblacion*1000)) %>%
+  ggplot(aes(x=año, y=per) ) +
+  geom_point(color = 'azure4') +
+  geom_smooth(color = '#5367B1', alpha = 0.2) +
+  scale_fill_continuous(type = "viridis") +
+  labs(title = "Nº de defunciones por cada mil habitantes",
+       subtitle = "Según la provincia",
+       y = "Defunciones",
+       x = "Año") +
+  facet_wrap(~provincia) +
+  theme_minimal() +
+  theme(plot.background = element_rect(color='white',
+                                       fill='white'))
+
+ggsave('images/def.png')
+```
+
+<br>
+Podemos ver en las gráficas que parece existir un punto a partir del cual el porcentaje de defunciones por las distintas enfermedades aumenta a medida que pasa el tiempo. La única explicación lógica, sabiendo que el número de personal sanitario en España en general aumenta conforme aumenta la población, estaría relacionada con el nivel de salud de dicha población. En consecuencia, debemos estudiar la natalidad. Si la natalidad disminuye y la población aumenta, probablemente la edad de la población entrante es elevada, presentando por lo general un menor nivel de salud y posibilitando por tanto una mayor cifra de defunciones. El hecho de que las Palmas posea mejores cifras en tasas de defunción podría también estar relacionado con este mismo hecho.
+
+<br>
+
+## Natalidad de las islas
+
+<br>
+En este apartado respondemos las preguntas sobre la diferencia relativa entre las defunciones por provincia, llegando a la conclusión que se indica al final de esta subsección.
+
+<br>
+
+```{r}
+nat_gc = natalidad %>%
+  filter(isla == 'Gran Canaria') %>%
+  ggplot(aes(x=año, y=natalidad) ) +
+  geom_point(color = 'azure4') +
+  geom_smooth(color = '#5367B1', alpha = 0.2) +
+  scale_fill_continuous(type = "viridis") +
+  labs(title = "Evolución de la natalidad",
+       subtitle = "en Gran Canaria",
+       y = "Nº de habitantes",
+       x = "Año") +
+  theme_bw()
+```
+
+```{r, fig.width=10, fig.height=4, fig.align='center'}
+grid.arrange(gc, nat_gc, ncol=2, top="Evolución de la población de Gran Canaria\n")
+```
+
+<br>
+<br>
+
+```{r, fig.height=5}
+plot_nat_cap = natalidad %>%
+  filter(isla == 'Gran Canaria' | isla == 'Tenerife') %>%
+  ggplot(aes(x=natalidad, y=isla, fill=isla)) +
+    geom_density_ridges_gradient(width=1.4) +
+    geom_boxplot(width=0.2, color="black", alpha=0.7) +
+    theme_minimal() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11),
+      axis.title.y = element_blank()
+    ) +
+    labs(title = "Variación de la natalidad",
+         subtitle = "en islas capitalinas")
+```
+
+```{r}
+plot_nat_per = natalidad %>%
+  filter(isla != 'Gran Canaria' & isla != 'Tenerife') %>%
+  ggplot(aes(x=natalidad, y=isla, fill=isla)) +
+    geom_density_ridges_gradient(width=1.4) +
+    geom_boxplot(width=0.2, color="black", alpha=0.7) +
+    theme_minimal() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11),
+      axis.title.y = element_blank()
+    ) +
+    labs(title = "Variación de la natalidad",
+         subtitle = "en islas periféricas")
+```
+
+```{r, fig.width=13, fig.height=5, fig.align='center'}
+grid.arrange(plot_nat_cap, plot_nat_per, ncol=2)
+```
+
+<br>
+<br>
+
+```{r, fig.width=10, fig.height=10, fig.align='center'}
+nat_plot = natalidad %>%
+  ggplot(aes(x=año, y=natalidad) ) +
+  geom_point(color = 'azure4') +
+  geom_smooth(color = '#5367B1', alpha = 0.2) +
+  scale_fill_continuous(type = "viridis") +
+  labs(title = "Evolución de la natalidad",
+       y = "Nº de nacidos",
+       x = "Año") +
+  facet_wrap(~isla, scales = 'free_y') +
+  theme(panel.background = element_rect(fill = 'white')) +
+  theme_minimal()
+
+nat_plot
+ggsave('images/fig_nat_canarias.png', nat_plot)
+```
+
+<br>
+<br>
+
+```{r, fig.width=10, fig.height=5, fig.align='center'}
+nat_plot = natalidad %>%
+  mutate(provincia = case_when(
+    isla == 'Lanzarote' ~ 'LAS PALMAS',
+    isla == 'Fuerteventura' ~ 'LAS PALMAS',
+    isla == 'Gran Canaria' ~ 'LAS PALMAS',
+    isla == 'Tenerife' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'La Gomera' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'La Palma' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'El Hierro' ~ 'SANTA CRUZ DE TENERIFE'
+  )) %>%
+  group_by(año, provincia) %>%
+  summarise(natalidad = mean(natalidad)) %>%
+  ggplot(aes(x=año, y=natalidad) ) +
+  geom_point(color = 'azure4') +
+  geom_smooth(color = '#5367B1', alpha = 0.2) +
+  scale_fill_continuous(type = "viridis") +
+  labs(title = "Evolución de la natalidad",
+       subtitle = "Por provincia",
+       y = "Nº de nacidos",
+       x = "Año") +
+  facet_wrap(~provincia) +
+  theme(plot.background = element_rect(fill = 'white',
+                            color = 'white')) +
+  theme_minimal()
+
+nat_plot
+ggsave('images/fig_nat_canarias.png', nat_plot)
+```
+
+<br>
+<br>
+
+Podemos comprobar que las Palmas presenta una mayor natalidad y, por tanto, mejor es la calidad de su población.Ahora bien, lo más probable, teniendo en cuenta que la natalidad tienda a bajar a medida que nos desplazamos positivamente en el tiempo, es que la elevada cifra de defunciones se deba simplemente a un aumento continuado en la edad media de la población del archipiélago, lo cual comprobamos a continuación. 
+
+
+<br>
+
+###  Edad media de la población
+
+```{r}
+pob_edad = read_excel("./datos/edad_poblacion.xls")
+pob_edad = to_double(pob_edad, colnames(pob_edad)[2:length(pob_edad)])
+colnames(pob_edad)[1] = 'isla'
+pob_edad$isla = islas
+
+pob = data.frame(t(pob_edad[-1]))
+colnames(pob) = pob_edad$isla
+```
+
+```{r}
+pob$año = rownames(pob)
+pob = melt(pob, id = c("año"))
+colnames(pob) = c("año", "isla", "edad_media")
+
+pob$año = as.double(pob$año)
+
+pob = pob %>%
+  mutate(provincia = case_when(
+    isla == 'Lanzarote' ~ 'Las Palmas',
+    isla == 'Fuerteventura' ~ 'Las Palmas',
+    isla == 'Gran Canaria' ~ 'Las Palmas',
+    isla == 'Tenerife' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'La Gomera' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'La Palma' ~ 'SANTA CRUZ DE TENERIFE',
+    isla == 'El Hierro' ~ 'SANTA CRUZ DE TENERIFE'
+  ))
+
+pob = pob %>%
+  left_join(natalidad, by = c('isla', 'año'))
+```
+
+```{r, fig.align='center', fig.height=4}
+pob %>%
+  ggplot(aes(x=as.double(año), y=edad_media)) +
+  geom_point(aes(color=isla)) +
+  geom_line(aes(color=isla, group=isla)) +
+  labs(title='Edad Media Poblacional',
+       subtitle = 'En todas las islas',
+       x='Año',
+       y='Edad Media') +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust=0.5),
+    plot.subtitle = element_text(hjust=0.5))
+```
+
+<br>
+<br>
+
+```{r, fig.width=9, fig.height=4, fig.align='center'}
+pob %>%
+  ggplot(aes(x=as.double(año), y=edad_media)) +
+  geom_point(aes(color=isla)) +
+  geom_line(aes(color=isla, group=isla)) +
+  labs(title='Edad Media Poblacional',
+       subtitle = 'Por provincia e islas',
+       x='Año',
+       y='Edad Media') +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust=0.5),
+    plot.subtitle = element_text(hjust=0.5)) +
+  facet_wrap(~provincia)
+
+ggsave('images/edad_prov.png')
+```
+
+<br>
+La creciente edad general de la población, en conjunto con la baja natalidad, es el fenómeno que explica el incremento en las defunciones. Así, no tiene sentido que la mortalidad por las distintas enfermedades aumente en Gran Canaria si la población simplemente permanece constante, pero si lo tiene si la edad media de esta crece. En concescuencia, no podemos acusar al sistema sanitario de ser responsable de estas malas cifras de defunciones.
+<br>
+
+```{r}
+gc_pob_nat_plot = pob %>%
+  filter(isla == 'Gran Canaria') %>%
+  ggplot(aes(x=as.double(año))) +
+  geom_line(aes(y=rescale(edad_media,to=c(0,1)), group=isla), color='azure3') +
+  geom_point(aes(y=rescale(edad_media,to=c(0,1))), color='azure4') +
+  geom_line(aes(y=rescale(natalidad,to=c(0,1)), group=isla), color='#6D7AA9') +
+  geom_point(aes(y=rescale(natalidad,to=c(0,1))), color='#5367B1') +
+  labs(title='Evolución de edad media poblacional y natalidad',
+       x='Año',
+       y='Porcentaje') +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust=0.5),
+    plot.subtitle = element_text(hjust=0.5)) +
+  facet_wrap(~isla) +
+  geom_text(aes(y=0.8, x=2001,label='Natalidad'),
+            hjust=-0.15,
+            color='#5367B1',
+            position = position_dodge(0),
+            angle=0,
+            size=4.0) +
+  geom_text(aes(y=0.3, x=2001,label='Población'),
+            hjust=-0.15,
+            color='azure4',
+            position = position_dodge(0),
+            angle=0,
+            size=4.0)
+
+gc = data %>%
+  group_by(año, isla) %>%
+  summarise(total = mean(porcentaje)) %>%
+  filter(isla == 'Gran Canaria') %>%
+  ggplot(aes(x=año, y=total) ) +
+  geom_point(color = 'azure4') +
+  geom_smooth(color = '#5367B1', alpha = 0.2) +
+  scale_fill_continuous(type = "viridis") +
+  labs(title = "Defunciones según el número de habitantes",
+       y = "Defunciones",
+       x = "Año") +
+  facet_wrap(~isla) +
+  theme(
+    axis.ticks = element_blank(),
+    panel.background = element_rect(fill='white'),
+    panel.grid = element_line(color='azure2', size=0.2),
+    panel.grid.major.y = element_line(color='azure3'),
+    plot.title = element_text(hjust=0.5),
+    plot.subtitle = element_text(hjust=0.5),
+    axis.title.y = element_blank())
+```
+
+```{r, fig.width=10, fig.height=4}
+grid.arrange(gc_pob_nat_plot, gc, ncol=2)
+```
+
+<br>
+<br>
+
+### Visualización geográfica de los datos
+
+<br>
+El objetivo principal de este trabajo podría decirse que era encontrar algún comportamiento anómalo en alguna de las islas del archipiélago. Saber que la Palma, por ejemplo, muestra un alto índice de defunciones en una enfermedad apenas apreciable en el resto de Canarias podría ser indicativo de un fenómeno, natural o no, que lo está provocando. 
+
+Pese a haber pasado a un trabajo algo más general, donde se busca no solo estudiar la defunción de las enfermedades, sino una medida del buen o mal desempeño del sistem sanitario de nuestro país y, en concreto, de Canarias, esta pregunta sigue estando persenta. Lo bueno es que, tras nuestra investigación, no hemos encontrado un comportamiento anómalo en ninguna isla, y para ello nos hemos apoyado de las siguientes visualizaciones geográficas.
+<br>
+
+```{r, fig.align='center', fig.width=10, fig.height=5}
+data_ccaa %>%
+  left_join(
+    data %>%
+      filter(año == 2021) %>%
+      group_by(isla) %>%
+      filter(total == max(total)) %>%
+      summarise(enfermedad),
+    by = 'isla'
+  ) %>%
+  ggplot(aes(x=long, y=lat, group=group, fill=enfermedad)) +
+  geom_polygon(size=0.001) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size=18, 
+                                  hjust=0.5, 
+                                  color='azure4'),
+    plot.subtitle = element_text(size=12,
+                                  hjust=0.5),
+    panel.grid.major.y = element_line(color = 'azure3'),
+    panel.grid.major.x = element_line(color = 'azure3'),
+    panel.grid.minor.y = element_line(color = 'azure2'),
+    panel.grid.minor.x = element_line(color = 'azure2'),
+    axis.text = element_blank(),
+    axis.title = element_blank()
+  ) + 
+  labs(title = 'Enfermedad que más afecta',
+       subtitle = 'en cada isla') +
+  scale_fill_manual(values = color_palette)
+```
+
+<br>
+<br>
+
+```{r}
+data_per = data %>%
+  filter(año == 2021 | año == 2002) %>%
+  left_join(poblacion[c('isla', '2021')], by=c('isla')) %>%
+  filter(enfermedad %in% c(nombres[7]))
+```
+
+
+```{r, fig.align='center', fig.width=5, fig.height=6}
+mapa = data_per %>%
+  left_join((data_ccaa), by=c('isla')) %>%
+  ggplot(aes(x=long, y=lat, group=group, fill=porcentaje)) +
+  geom_polygon(size=0.001) +
+  theme(
+    plot.title = element_text(size=18, 
+                                  hjust=0.5, 
+                                  color='azure4'),
+    plot.subtitle = element_text(size=12,
+                                  hjust=0.5),
+    panel.grid.major.y = element_line(color = 'azure3'),
+    panel.grid.major.x = element_line(color = 'azure3'),
+    panel.grid.minor.y = element_line(color = 'azure2'),
+    panel.grid.minor.x = element_line(color = 'azure2'),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    panel.background = element_rect(color='white',
+                                   fill='white')
+  ) + 
+  scale_fill_viridis(option='viridis', name='Porcentaje') +
+  labs(title = 'Defunciones por nº de habitantes',
+       subtitle = 'Para enf. del sistema circulatorio') +
+  facet_wrap(~año, ncol=1)
+
+mapa
+ggsave('images/mapa_comp.png', mapa)
+```
+
+<br>
+El único fenómeno extraño podría ser que la Palma y el Hierro son las que, por norma general, presentan un mayor porcentaje de defunciones. No obstante, esto sabemos gracias al estudio previo que no es de extrañar, pues basta analizar la gráfica de la evolución de la edad media poblacional en estas islas para ver que estas dos presentan los valores de edad más altos, y en consecuencia presentarán una mayor mortalidad.
+
+<br>
+<br>
+
+### MAPA INTERACTIVO
+<br>
+
+Se incluye como extra un mapa interactivo que nos muestra una gran cantidad de información sobre como afectan las distintas enfermedades a cada una de ellas.
+
+<br>
+```{r, fig.align='center'}
+lat = c(27.74350835, 28.6835100, 28.0916300, 28.4682400, 28.0997300, 28.4, 29.035)
+long = c(-18.0381796182099, -17.7642100, -17.1133100, -16.2546200, -15.4134300, -14, -13.635)
+
+dt = data %>%
+  filter(año == 2021) %>%
+  mutate(long = case_when(
+  isla == 'El Hierro' ~ long[1],
+  isla == 'La Palma' ~ long[2],
+  isla == 'La Gomera' ~ long[3],
+  isla == 'Tenerife' ~ long[4],
+  isla == 'Gran Canaria' ~ long[5],
+  isla == 'Fuerteventura' ~ long[6],
+  isla == 'Lanzarote' ~ long[7]
+  )) %>%
+  mutate(lat = case_when(
+  isla == 'El Hierro' ~ lat[1],
+  isla == 'La Palma' ~ lat[2],
+  isla == 'La Gomera' ~ lat[3],
+  isla == 'Tenerife' ~ lat[4],
+  isla == 'Gran Canaria' ~ lat[5],
+  isla == 'Fuerteventura' ~ lat[6],
+  isla == 'Lanzarote' ~ lat[7]
+  )) %>%
+  group_by(lat, long, isla) %>%
+  summarise(total = sum(total))
+
+for (enf in nombres) {
+  d = (data %>%
+    filter(enfermedad == enf & año == 2021) %>%
+    mutate(tt = total) %>%
+    group_by(isla))[,c('tt', 'isla')]
+
+  colnames(d)[1] = enf
+  
+  dt = dt %>%
+      left_join(d,
+      by=c('isla'))
+}
+
+dt = dt %>%
+  left_join(poblacion[c('isla', '2021')], by='isla') %>%
+  mutate(porcentaje = total/`2021` * 100)
+```
+
+```{r}
+write.csv2(dt, "Mapa_Canarias.csv",fileEncoding = "ISO-8859-3", row.names = FALSE,dec=".")
+```
+
+```{r, fig.align='center'}
+mybins <- c(0, 200, 5000, 7500, 10000)
+mypalette <- colorBin( palette="YlOrBr", domain=quakes$mag, na.color="transparent", bins=mybins)
+
+mytext <- paste(
+    toupper(dt$isla), "  (2021)<br/>", "<br/>", 
+   "Total Defunciones: ", dt$total, "<br/>", 
+   "Def. sistema circulatorio: ", dt$`ENF. DEL SISTEMA CIRCULATORIO`, "<br/>",
+   "Def. tumores [neoplasias]: ", dt$`TUMORES [NEOPLASIAS]`, "<br/>",
+   "Def. sistema respiratorio: ", dt$`ENF. DEL SISTEMA RESPIRATORIO`, "<br/>",
+      "Def. infecciones parasitarias: ", dt$`ENF. INFECCIOSAS Y PARASITARIAS`, "<br/>",
+   "Def. sistema digestivo: ", dt$`ENF. DEL SISTEMA DIGESTIVO`, "<br/>", "<br/>",
+   "Población: ", dt$`2021`, "<br/>",
+   "Porcentaje de defunciones: ", round(dt$porcentaje, 2), "<br/>",
+   sep="") %>%
+  lapply(htmltools::HTML)
+ 
+m = dt %>%
+  leaflet() %>% 
+  addTiles() %>% 
+  addTiles()  %>% 
+  setView( lat=28.5, lng=-15.8 , zoom=7) %>%
+  addProviderTiles("Esri.WorldImagery") %>%
+  addCircleMarkers(~long, ~lat, 
+    fillColor = ~mypalette(total), fillOpacity = 0.5, color="white", radius=30, stroke=FALSE,
+    label = mytext,
+    labelOptions = labelOptions( style = list("font-weight" = "normal", padding = "3px 8px"), textsize = "13px", direction = "auto")
+  ) %>%
+  addLegend( pal=mypalette, values=~total, opacity=0.9, title = "Defunciones", position = "bottomright")
+
+m
+```
+
+

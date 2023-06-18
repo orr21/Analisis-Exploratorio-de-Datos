@@ -1,0 +1,129 @@
+---
+output:
+  pdf_document:
+    includes:
+      in_header: reformat_paragraph.tex
+---
+
+```{=latex}
+\begin{titlepage}
+\centering
+{\bfseries\LARGE Universidad de Las Palmas de Gran Canaria\par}
+\vspace{1cm}
+{\scshape\Large Facultad de Ingenier\'ia Inform\'atica \par}
+\vspace{3cm}
+{\scshape\Huge Medidas de tiempo \par}
+\vspace{3cm}
+{\itshape\Large An\'alisis Exploratorio de Datos \par}
+\vfill
+{\Large Autores: \par}
+{\Large Ricardo C\'ardenes \par}
+{\Large \'Oscar Rico \par}
+\vfill
+{\Large Abril 2023 \par}
+\end{titlepage}
+```
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Para manipular dataframes y graficar
+library(tidyverse)
+
+# Para importar archivos shapefiles
+library(rgdal)
+
+# Para transformar los archivos shapefiles 
+library(broom)
+
+# Para una mejor visualización
+library(knitr)
+
+# Para cargar datos en excel
+library(readxl)
+```
+
+En este fichero queremos comprobar que tanto se reduce el tiempo usando técnicas como la reducción de volumen de datos o guardar el fichero con los datos procesados. Para ello hemos decidido presentar 2 casos.
+
+#### Caso 1:
+
+En este primer caso, se dará la peor de las condiciones, no hemos usado ninguna de las 2 técnicas para mejorar el rendimiento de nuestro código.
+
+```{r l, message=FALSE, warning=FALSE, results='hide'}
+start = Sys.time()
+# Guardamos el archivo shapefile
+shapefile_municipios <- readOGR("./Municipios/Municipios_IGN.shp")
+
+# Para convertir el archivo shapefile en un dataframe utilizamos la función tidy()
+data_municipios <- tidy(shapefile_municipios)
+
+# Cargamos los codigos
+codigo_municipios <- data.frame(shapefile_municipios$CODIGOINE)
+
+# Conseguimos las ids
+codigo_municipios$id <- as.character(seq(0, nrow(codigo_municipios)-1))
+
+# Unimos ambos dataframes por id
+data_municipios_mapa <- left_join(data_municipios, codigo_municipios, by = "id") %>%
+  mutate(codigo_ine = as.character(`shapefile_municipios.CODIGOINE`)) %>%
+  select(-`shapefile_municipios.CODIGOINE`)
+
+data_municipios_mapa %>%
+  ggplot() +
+  geom_polygon(aes( x= long, y = lat, group = group),
+               fill = "violetred4",
+               color = "white",
+               size = 0.001) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank()
+    ) +
+  ggtitle("Municipios Españoles")
+end = Sys.time()
+```
+
+```{r}
+end - start
+```
+
+#### Caso 2:
+
+En este segundo caso, se dará la mejor de las condiciones, tendremos los datos ya procesados y guardados, y además, usaremos reducción de volumen para la representación de los mismos.
+
+```{r}
+start = Sys.time()
+
+data_municipios_mapa <- read.csv("./Medidas de tiempo/prueba.csv")
+
+data_municipios_mapa %>%
+  slice(seq(1, nrow(data_municipios_mapa), 5)) %>%
+  ggplot() +
+  geom_polygon(aes( x= long, y = lat, group = group),
+               fill = "violetred4",
+               color = "white",
+               size = 0.001) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank()
+    ) +
+  ggtitle("Municipios Españoles")
+end = Sys.time()
+end - start
+```
+
+#### Conclusiones
+
+Como podemos observar, existe una gran diferencia en cuanto a tiempos se refiere para ambos casos. Una vez tenemos nuestros datos correctamente procesados y estructurados, los tiempos de la ejecución de ambas gráficas serían prácticamente los mismos si no se hubiera aplicado en ninguno una reducción en el volumen de datos. Las sutiles diferencias que podrían aparecer aquí se deberían a que los datos que le pasamos al objeto ggplot no vienen en un mismo formato. En el segundo, data_municipios_mapa contiene un objeto del tipo data.frame, mientras que en el primer caso el objeto resultante de la transformación final de los datos geográficos es del tipo tidy tibble, aunque sería Spatial\*DataFrame en caso de no haberlo transformado, y contendría por tanto información geoespacial y atributiva del archivo leído. Esto se traduce en mayores tiempos de representación de las gráficas
+
+Una de las principales mejoras en eficiencia la conseguimos una vez guardamos los datos ya organizados en un fichero '.csv'. Al hacer esto, conseguimos reducir el tiempo de ejecución en las futuras lecturas desde memoria secundaria del conjunto de datos, pues, en general, la lectura de un archivo CSV es más rápida que la lectura de un archivo shapefile. Esto se debe a que los archivos CSV son estructuras de datos simples y planas, mientras que los archivos shapefile contienen información geoespacial compleja que requiere más tiempo para ser procesada.
+
+En el segundo caso, como se indica, se lleva a cabo una reducción de los datos. Concretamente, se descarta un 80% de los mismos para la representación, al quedarnos únicamente con un dato por cada cinco del conjunto original. Esto supone en el peor de los casos, al necesariamente tener que acceder al menos una vez a cada dato para poder representarlo en el plano, una reducción de tiempos de representación de ese mismo porcentaje (aproximadamente), pues geom_polygon presentaría un coste algorítmico lineal. En general, el costo algorítmico de la función geom_polygon es relativamente bajo para un pequeño número de polígonos o para polígonos simples con un número limitado de vértices. Sin embargo, este aumenta significativamente a medida que se aumenta el número de polígonos y la complejidad de cada uno de ellos. Así, a mayor complejidad del dataset, más ganaremos al aplicar esta reducción.

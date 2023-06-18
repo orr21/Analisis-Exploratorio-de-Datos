@@ -1,0 +1,567 @@
+---
+output:
+  pdf_document:
+    includes:
+      in_header: reformat_paragraph.tex
+      # Necesario para exportar a pdf sin dificultades
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{=latex}
+\begin{titlepage}
+\centering
+{\bfseries\LARGE Universidad de Las Palmas de Gran Canaria\par}
+\vspace{1cm}
+{\scshape\Large Facultad de Ingenier\'ia Inform\'atica \par}
+\vspace{3cm}
+{\scshape\Huge Segunda tarea: Datos de Canarias \par}
+\vspace{3cm}
+{\itshape\Large An\'alisis Exploratorio de Datos \par}
+\vfill
+{\Large Autores: \par}
+{\Large Ricardo C\'ardenes \par}
+{\Large \'Oscar Rico \par}
+\vfill
+{\Large Abril 2023 \par}
+\end{titlepage}
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Para manipular dataframes y graficar
+library(tidyverse)
+
+# Para importar archivos shapefiles
+library(rgdal)
+
+# Para transformar los archivos shapefiles 
+library(broom)
+
+# Para una mejor visualización
+library(knitr)
+
+# Para usar escalas de colores más bonitas
+library(viridis) 
+
+# Para cargar datos en excel
+library(readxl)
+
+# Para mostrar más de una gráfica a la vez
+library(gridExtra)
+```
+
+## Segunda tarea: datos de Canarias
+
+Para este apartado, nos enfocaremos en datos propios de Canarias y crearemos un mapa que muestre la población de los municipios de la región. Para ello, será necesario obtener información sobre la población de cada municipio, la cual obtuvimos a través de fuentes confiables como el Instituto Nacional de Estadística (INE).
+
+Una vez que recopilados estos datos, utilizamos un procedimiento similar al utilizado en el tutorial para generar el mapa. El objetivo fue colorear cada municipio según su población, de manera que se pueda apreciar visualmente las diferencias en cuanto a la densidad poblacional en toda la región.
+
+#### Fuente de los datos
+
+[Datos cartográficos de los municipios de Canarias.](https://opendata.sitcan.es/dataset/islas-y-municipios/resource/c2d1d0df-2cfb-48e2-a42d-0a8196e423fc)
+
+[Datos de población por municipios.](https://www3.gobiernodecanarias.org/istac/statistical-visualizer/visualizer/data.html?resourceType=dataset&agencyId=ISTAC&resourceId=E30245A_000002&version=1.1)
+
+#### Tratamiento de datos previo a la descarga
+
+Respecto al primer conjunto de datos que se refiere a los municipios de Canarias, su descarga en formato shp fue bastante sencilla y sin mayores dificultades. En contraste, el segundo conjunto de datos requirió un tratamiento previo más detallado, en el que se tuvimos que acceder a la configuración y eliminar aquellos atributos que no eran relevantes para nuestro trabajo. Las opciones que seleccionamos fueron las siguientes:
+
+-   Indicador: Población
+
+-   Periodo: 2020
+
+-   Territorio: Nivel 3
+
+-   Sexo: Total
+
+Se optó por el indicador de población debido a que nuestra investigación se enfocaría únicamente en la población total, excluyendo los otros indicadores ofrecidos por la ISTAC. En cuanto al periodo, se eligieron los datos más recientes disponibles en la página para nuestro estudio. Por último, en cuanto al territorio y al sexo, se seleccionaron estos filtros ya que nos enfocaríamos en los municipios de las islas sin diferenciar entre géneros. Con estos ajustes en la selección de los datos, se aseguró la relevancia y pertinencia de la información que se utilizaría en nuestro trabajo de investigación.
+
+Además, se realizó una manipulación del archivo Excel para facilitar su carga en R, eliminando las filas innecesarias al comienzo y al final, y añadiendo un nombre a la columna de los municipios. Con estas modificaciones, se simplificó el proceso de lectura de los datos y se facilitó su análisis posterior en R.
+
+#### Carga y tratamiento de datos
+
+Lo primero que haremos será importar los datos cartográficos de Canarias.
+
+```{r p, message=FALSE, warning=FALSE, include=FALSE, results='hide'}
+# Guardamos el archivo shapefile
+shapefile_municipios_canarias <- readOGR("./Tarea2/municipios.shp")
+
+# Para convertir el archivo shapefile en un dataframe utilizamos la función tidy()
+data_canarias <- tidy(shapefile_municipios_canarias)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+kable(head(data_canarias))
+```
+
+\newpage
+
+A continuación, obtenemos los nombres de cada municipio y les asignamos su id para poder añadir estos datos a los cartográficos.
+
+```{r q, echo=FALSE, message=FALSE, warning=FALSE}
+# Cargamos los nombres
+nombres_municipios_canarias <- data.frame(shapefile_municipios_canarias$municipio)
+# Conseguimos las ids
+nombres_municipios_canarias$id <- as.character(seq(0, nrow(nombres_municipios_canarias)-1))
+# Mostramos resultado
+kable(head(nombres_municipios_canarias))
+```
+
+Ahora si, procedemos a juntar ambos data frames por su id
+
+```{r r, echo=FALSE, message=FALSE, warning=FALSE}
+# Unimos ambos dataframes por id
+data_municipios_canarias <- left_join(data_canarias, nombres_municipios_canarias, 
+                                      by = "id") %>%
+  mutate(municipios = as.character(`shapefile_municipios_canarias.municipio`)) %>%
+  select(-`shapefile_municipios_canarias.municipio`)
+# Mostramos resultados
+kable(head(data_municipios_canarias))
+```
+
+Ahora bien, importamos los datos de la población por municipios.
+
+```{r s, message=FALSE, warning=FALSE, include=FALSE}
+poblacion_municipios_canarias <- read_excel("./Tarea2/población_municipios_canarias.xlsx")
+```
+
+```{r t, echo=FALSE, message=FALSE, warning=FALSE}
+kable(head(poblacion_municipios_canarias))
+```
+
+Por último, nos dimos cuenta de que existen 6 municipios cuyos nombres difieren de un data frame a otro. Problema que tuvimos que corregir para que no se establezca la población de esos municipios como valores faltantes, o bien se eliminen al hacer el join. Además, decidimos poner todos los nombres de los municipios en mayúsculas, para facilitar la compatibilidad.
+
+```{r u, echo=FALSE, message=FALSE, warning=FALSE}
+poblacion_municipios_canarias = poblacion_municipios_canarias %>%
+  mutate(Municipios = toupper(Municipios)) %>%
+  rename(municipios = "Municipios") %>%
+  rename(poblacion = "Total") %>%
+  mutate(municipios = case_when(
+    municipios == 'FUENCALIENTE DE LA PALMA' ~ 'FUENCALIENTE',
+    municipios == 'VALSEQUILLO DE GRAN CANARIA' ~ 'VALSEQUILLO',
+    municipios == 'SANTA MARÍA DE GUÍA DE GRAN CANARIA' ~ 'SANTA MARÍA DE GUÍA',
+    municipios == 'EL PINAR DE EL HIERRO' ~ 'EL PINAR',
+    municipios == 'SAN CRISTÓBAL DE LA LAGUNA' ~ 'LA LAGUNA',
+    municipios == 'VILAFLOR DE CHASNA' ~ 'VILAFLOR',
+    TRUE ~ municipios
+  ))
+
+kable(head(poblacion_municipios_canarias))
+```
+
+\newpage
+
+#### Primer ejemplo escalado continuo
+
+Para nuestro primer ejemplo, decidimos representar la población de los municipios de Canarias como datos continuos. Sin embargo, es importante destacar que existen alternativas más adecuadas para representar este tipo de información.
+
+En primer lugar, es necesario combinar los datos cartográficos con los datos sobre la población por municipios. Para hacerlo, utilizaremos los nombres de los municipios que ya tratamos anteriormente como un enlace común entre ambas fuentes de información, de manera que podamos evitar problemas de compatibilidad y garantizar la precisión de los resultados.
+
+```{r v, echo=FALSE, message=FALSE, warning=FALSE}
+# Unimos ambos dataframes por nombre de los municipios
+data_municipios_canarias_mapa_continous <- left_join(data_municipios_canarias, poblacion_municipios_canarias, by = "municipios")
+# Mostramos resultados
+kable(head(data_municipios_canarias_mapa_continous))
+```
+
+El siguiente código tiene como objetivo guardar los datos procesados en un archivo csv, lo que permitirá la fácil reejecución del código sin tener que repetir todo el proceso de tratamiento de datos nuevamente. De esta forma, se asegura la conservación de los datos procesados y se facilita el acceso a los mismos en futuras iteraciones del análisis de datos.
+
+```{r w, message=FALSE, warning=FALSE}
+write.csv(data_municipios_canarias_mapa_continous, "./Tarea2/datos_continous.csv",
+          row.names = FALSE, append = FALSE)
+```
+
+Este sería el resultado de gráficar los municipios de Canarias por población con una escala continua:
+
+```{r x, echo=FALSE, fig.height=3.5, fig.width=6, message=FALSE, warning=FALSE, dpi=300, fig.align='center'}
+data_municipios_canarias_mapa_continous %>%
+  ggplot() +
+  geom_polygon(aes(x= long, y = lat, group = group, fill = poblacion),
+               color = "black",
+               size = 0.05) +
+  scale_fill_viridis(name = "Población", option = "viridis", limits = c(0, 380000), 
+                     breaks = c(0, 76000 , 150000 , 230000 , 300000 , 380000), 
+                     labels = format(c(0, 76000 , 150000 , 230000 , 300000 , 380000), scientific = FALSE)) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank(),
+    legend.title = element_text(color = "black", size = 8),
+    legend.text = element_text(color = "grey40", size = 7, hjust = 0),
+    legend.position = c(0.95, 0.2),
+    legend.key.size = unit(0.55, "cm")) +
+  labs(
+    title = "Municipios de Canarias",
+    subtitle = "Población en 2021",
+    caption = "Crédito: Ricardo Cárdenes y Óscar Rico\nFuente: Instituto Canario de Estadística (ISTAC)"
+  )
+```
+
+Después de experimentar con varios métodos de escalado, encontramos uno que nos pareció el mejor para mostrar las variaciones de población entre los distintos municipios de Canarias. Sin embargo, no quedamos totalmente satisfechos con este método, ya que aún es difícil distinguir las diferencias de población entre los diferentes municipios.
+
+\newpage
+
+#### Segundo ejemplo escalado discreto
+
+En lugar de representar la población de los municipios de Canarias como datos continuos, otra alternativa es discretizar la información en categorías. Por ejemplo, se puede dividir la población según sus deciles en 10 partes iguales, de manera que cada municipio estará asignado a una categoría específica dependiendo del rango en el que se encuentre.
+
+En primer lugar, es necesario combinar los datos cartográficos con los datos sobre la población por municipios. Para hacerlo, utilizaremos la misma técnica que explicamos en el ejemplo anterior, pero esta vez aplicaremos un escalado discreto.
+
+```{r y, echo=FALSE, message=FALSE, warning=FALSE, fig.width= 6}
+# Unimos ambos dataframes por nombre de los municipios
+data_municipios_canarias_mapa_discrete <- left_join(data_municipios_canarias, poblacion_municipios_canarias, by = "municipios") %>%
+  mutate(poblacion = cut(poblacion, quantile(poblacion, probs = seq(0, 1, 0.1),na.rm = TRUE), include.lowest = TRUE))
+# Mostramos resultados
+kable(head(data_municipios_canarias_mapa_discrete))
+```
+
+El siguiente código tiene como objetivo guardar los datos procesados en un archivo csv, lo que permitirá la fácil reejecución del código sin tener que repetir todo el proceso de tratamiento de datos nuevamente. De esta forma, se asegura la conservación de los datos procesados y se facilita el acceso a los mismos en futuras iteraciones del análisis de datos.
+
+```{r z, message=FALSE, warning=FALSE}
+write.csv(data_municipios_canarias_mapa_discrete, "./Tarea2/datos_discrete.csv",
+          row.names = FALSE, append = FALSE)
+```
+
+Este sería el resultado de gráficar los municipios de Canarias por población con una escala discreta:
+
+```{r aa, echo=FALSE, fig.height=4, fig.width=7.8, message=FALSE, warning=FALSE, dpi=300, fig.align='center'}
+data_municipios_canarias_mapa_discrete %>%
+  ggplot() +
+  geom_polygon(aes(x= long, y = lat, group = group, fill = poblacion),
+               color = "black",
+               size = 0.05) +
+  scale_fill_viridis(name = "Población", option = "viridis", discrete = TRUE, na.translate = F) + # Usamos la paleta de colores viridis
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    plot.background = element_blank(),
+    panel.background = element_blank(),
+    legend.title = element_text(color = "black", size = 10),
+    legend.text = element_text(color = "grey40", size = 8, hjust = 0),
+    legend.position = "bottom", 
+    legend.box = "horizontal", # Mostramos la leyenda en horizontal
+    legend.margin = margin(t = 0, r = 10, b = 0, l = 10, unit = "pt") # Ajustamos la posición de la leyenda
+  ) +
+  labs(
+    title = "Municipios de Canarias",
+    subtitle = "Población en 2021",
+    caption = "Crédito: Ricardo Cárdenes y Óscar Rico\nFuente: Instituto Canario de Estadística (ISTAC)"
+  )
+```
+
+Como podemos observar en la gráfica, esta opción es más efectiva que la representación continua, ya que permite que la información sea más fácil de leer y comprender. Además, al dividir la población en categorías, se destacan más fácilmente las diferencias entre los municipios con poblaciones pequeñas y grandes.
+
+\newpage
+
+## RETO EXTRA
+
+Para este reto aprovecharemos los datos tratados y cargados en el ejercicio anterior con unas pequeñas modificaciones.
+
+```{r echo=FALSE}
+data = data_municipios_canarias[c('long', 'id', 'municipios')] %>%
+  left_join(poblacion_municipios_canarias, by='municipios') %>%
+  group_by(id) %>%
+  summarise(long = mean(long),municipios = unique(municipios), poblacion = unique(poblacion))
+
+
+kable(head(data))
+```
+
+Además, comprobamos que todos los datos de población se han añadido correctamente, descartando la existencia de valores faltantes
+
+```{r echo=FALSE}
+kable(data[is.na(data['poblacion']), 'municipios'])
+```
+
+Añadimos la provincia a los datos, sabiendo que estas pueden diferenciarse única y exclusivamente en base a la longitud de cada isla. Así, todo aquel territorio cuya longitud sea menor que 4e05u, pertenecerá a Santa Cruz de Tenerife. Si no, decimos que pertenece a la provincia de las Palmas.
+
+```{r echo=FALSE}
+data = data %>%
+  mutate(provincia = if_else(long < 4e05, 'SCTF', 'LP'))
+
+kable(head(data))
+```
+
+Procedemos a ordenar el data frame de forma decreciente en base a la población, y establecemos un índice para cada provincia que indica el orden de población
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+data = data[order(data$poblacion, decreasing = TRUE),]
+data$pos[data$provincia == 'SCTF'] = (0:length(data$municipios[data$provincia == 'SCTF']) + 1)
+data$pos[data$provincia == 'LP'] = (0:length(data$municipios[data$provincia == 'LP']) + 1)
+
+kable(head(data))
+```
+
+\newpage
+
+Nos quedamos, como se indica en el guión, con los 6 municipios más poblados de cada provincia
+
+```{r echo=FALSE,}
+total = sum(poblacion_municipios_canarias$poblacion, na.rm=TRUE)
+data = data[order(data$pos, decreasing=FALSE),] %>%
+  filter(pos <= 6) %>%
+  mutate(porcentaje = poblacion/total)
+
+kable(head(data))
+```
+
+### Gráficos del reto
+
+Comenzamos tratando de recrear un gráfico que muestre la misma información que el indicado en el guión, mediante un gráfico de columnas de ggplot2.
+
+```{r echo=FALSE, fig.height=8, fig.width=15, message=FALSE, warning=FALSE}
+plot_per = data %>%
+  ggplot(aes(x=rev(as.factor(pos)), y=poblacion, group=provincia, fill=pos)) +
+  geom_col(position='dodge', color='white') +
+  labs(x="Municipio",
+       y='nº de habitantes', 
+       title = 'Municipios más poblados de Canarias',
+       subtitle = 'Por provincia') +
+  theme(plot.margin = unit(c(1, 0.9, 0.2, 0.2), 'cm'),
+        panel.background = element_rect(fill='transparent'),
+        legend.position = 0,
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_line(color = "azure3",
+                                        size = 0.5,
+                                        linetype = 2),
+        panel.grid.minor.x = element_line(color = "azure2",
+                                        size = 0.5,
+                                        linetype = 2),
+        plot.title = element_text(size=24, face='bold', 
+                                  hjust=0.5, 
+                                  color='lightsteelblue4'),
+        plot.subtitle = element_text(size=16,
+                                     hjust=0.5),
+        axis.title = element_text(size=14)) +
+  
+   geom_text(aes(label=paste0(municipios,' ', '(', round(porcentaje,3), '%)')),
+            color='black',
+            hjust=-0.15,
+            position = position_dodge(0.9),
+            angle=0,
+            size=4.0) +
+  scale_y_continuous(expand = c(0.01,0.4,0.35,0)) +
+  scale_x_discrete(labels=seq(6,0,-1)) +
+  coord_flip()
+
+plot_per
+```
+
+En este, además de mostrar los municipios y su población, mostramos el porcentaje de población que representa dicho municipio respecto al total de Canarias. No obstante, uno podría confundirse con dicho porcentaje. Esta gráfica sin contexto alguno podría dar a entender que el porcentaje hace referencia a la cantidad de población que alberga el municipio en concreto respecto la de la isla a la que pertenece, por ejemplo, y no de Canarias en general. Así, pese a considerar que esta sería una muy buena gráfica dentro del contexto de un estudio de datos, procedemos a representar la información de una manera distinta, en la que en vez de mostrar el porcentaje mostramos la cantidad de población total de cada municipio.
+
+```{r echo=FALSE, fig.width=15, fig.height=8}
+plot_total = data %>%
+  ggplot(aes(x=rev(as.factor(pos)), y=poblacion, group=provincia, fill=pos)) +
+  geom_col(position='dodge', color='white') +
+  labs(x="Municipio",
+       y='nº de habitantes', 
+       title = 'Municipios más poblados de Canarias',
+       subtitle = 'Por provincia') +
+  theme(plot.margin = unit(c(1, 0.9, 0.2, 0.2), 'cm'),
+        panel.background = element_rect(fill='transparent'),
+        legend.position = 0,
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_line(color = "azure3",
+                                        size = 0.5,
+                                        linetype = 2),
+        panel.grid.minor.x = element_line(color = "azure2",
+                                        size = 0.5,
+                                        linetype = 2),
+        plot.title = element_text(size=24, face='bold', 
+                                  hjust=0.5, 
+                                  color='lightsteelblue4'),
+        plot.subtitle = element_text(size=16,
+                                     hjust=0.5),
+        axis.title = element_text(size=14)) +
+  
+   geom_text(aes(label=paste0(municipios)),
+            color='black',
+            hjust=-0.15,
+            position = position_dodge(0.9),
+            angle=0,
+            size=4.0) +
+  geom_text(aes(label=paste0(poblacion)),
+            color='white',
+            hjust=2.0,
+            position = position_dodge(0.9),
+            angle=0,
+            size=4.0) +
+  scale_y_continuous(expand = c(0.01,0.4,0.35,0)) +
+  scale_x_discrete(labels=seq(6,0,-1)) +
+  coord_flip()
+
+plot_total
+```
+
+Este gráfico presenta la ventaja de presentar los datos de una manera exacta, y podríamos incluso recrear nuestro dataset para esos municipios a partir del mismo. Sin embargo, no nos aporta información alguna sobre la cantidad total de población de Canarias. En el primer gráfico, somo capaces de saber el porcentaje de población restante que no está siendo mostrada en él, y teniendo en cuenta la población de esos individuos de una manera aproximada gracias a la información que nos aporta el eje horizontal, podríamos obtener una medida bastante cercana a la de la población restante
+
+En ambas gráficas se puede apreciar que los municipios están ordenados verticalmente de manera decreciente respecto a su población. No obstante, en los últimos municipios esta diferencia podría no ser muy clara. Para ayudar al posible lector, jugamos con la intensidad del color de cada barra, de manera que inconscientemente este suponga una relación de orden natural en los datos. Podríamos cambiar esto y utilizar distintos colores, en vez de jugar con la intensidad de uno en concreto, y obtener el siguiente resultado.
+
+```{r echo=FALSE, fig.width=32, fig.height=13}
+plot_per_vir = plot_per +
+  geom_blank() +
+  scale_fill_viridis()
+
+grid.arrange(plot_per, plot_per_vir, ncol=2)
+```
+
+De ambas gráficas se podría llegar a deducir una relación de orden, pues en la segunda podrían tenerse en cuenta los colores del arcoiris. Sin embargo, esta relación quizás es menos intuitiva, y por tanto creemos la primera de las gráficas como una mejor opción para la información que deseamos transmitir.
+
+Estos gráficos presentan un problema. Nosotros, al ser habitantes de las Islas Canarias sabemos claramente con ver la gráfica que la primera de las barras para cada grupo corresponde con un municipio de la provincia de Santa Cruz de Tenerife, pero: ¿qué pasa con aquel que no haya estado en Canarias en su vida? ¿acaso está condenado a no poder entender nuestra gráfica? Pese a interesante que pueda ser dar una herramienta adicional para deducir el orden de los municipios, la herramienta del color en este caso debe ser reservada para la provincia, de forma que:
+
+```{r echo=FALSE, fig.width=15, fig.height=8}
+plot_total_color = data %>%
+  ggplot(aes(x=rev(as.factor(pos)), y=poblacion, fill=provincia, group=provincia)) +
+  geom_col(position='dodge', color='white') +
+  labs(x=NULL,
+       y='nº de habitantes', 
+       title = 'Municipios más poblados de Canarias',
+       subtitle = 'Por provincia') +
+  theme(plot.margin = unit(c(1, 0.9, 0.2, 0.2), 'cm'),
+        panel.background = element_rect(fill='transparent'),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid.major.x = element_line(color = "azure3",
+                                        size = 0.5,
+                                        linetype = 2),
+        panel.grid.minor.x = element_line(color = "azure2",
+                                        size = 0.5,
+                                        linetype = 2),
+        plot.title = element_text(size=24, face='bold', 
+                                  hjust=0.5, 
+                                  color='lightsteelblue4'),
+        plot.subtitle = element_text(size=16,
+                                     hjust=0.5),
+        axis.title = element_text(size=14)) +
+  
+   geom_text(aes(y = -15000, label=paste0(municipios)),
+            color='black',
+            hjust=1,
+            position = position_dodge(0.9),
+            angle=0,
+            size=4.0) +
+  geom_text(aes(label=paste0(poblacion)),
+            color='white',
+            hjust=1.5,
+            position = position_dodge(0.9),
+            angle=0,
+            size=4.0) +
+  scale_y_continuous(expand = c(0.4,0.4,0.35,0)) +
+  scale_x_discrete(labels=seq(6,0,-1)) +
+  coord_flip()
+
+plot_total_color
+```
+
+Donde, ahora sí, mostramos toda la información en el gráfico.
+
+En el siguiente gráfico podemos apreciar como se distribuyen estos municipios en las diferentes provincias.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df = data_municipios_canarias %>%
+  left_join(poblacion_municipios_canarias, by='municipios') %>%
+  mutate(provincia = if_else(long < 4e05, 'SCTF', 'LP'))
+
+
+df = df[order(df$poblacion, decreasing = TRUE),]
+# write.csv(df, file = "pob.csv", row.names = FALSE)
+
+st_pos = c()
+lp_pos = c()
+
+id_tf = 1
+id_lp = 1
+
+for (id in as.numeric(unique(df$id[df$provincia == 'SCTF']))) {
+  if (id_tf <= 6) {
+    st_pos = c(st_pos, rep(id_tf, length(df$id[df$id == id])))
+    id_tf = id_tf + 1
+  } else {
+    st_pos = c(st_pos, rep('6<', length(df$id[df$id == id])))
+  }
+}
+
+for (id in as.numeric(unique(df$id[df$provincia == 'LP']))) {
+  if (id_lp <= 6) {
+    lp_pos = c(lp_pos, rep(id_lp, length(df$id[df$id == id])))
+    id_lp = id_lp + 1
+  } else {
+    lp_pos = c(lp_pos, rep('6<', length(df$id[df$id == id])))
+  }
+}
+
+df$pos[df$provincia == 'SCTF'] = st_pos
+df$pos[df$provincia == 'LP'] = lp_pos
+```
+
+```{r echo=FALSE, fig.height=4, fig.width=10}
+pprovincias = ggplot(df, aes(x=long, y=lat, group=group, fill=pos)) +
+  geom_polygon(color='white', size=0.001) +
+  theme(
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    plot.title = element_text(size=18, 
+                                  hjust=0.5, 
+                                  color='darkblue'),
+    plot.subtitle = element_text(size=12,
+                                  hjust=0.5),
+    panel.grid.major.y = element_line(color = 'azure3'),
+    panel.grid.major.x = element_line(color = 'azure3'),
+    panel.grid.minor.y = element_line(color = 'azure2'),
+    panel.grid.minor.x = element_line(color = 'azure2'),
+    legend.position = 0
+  ) + 
+  scale_fill_viridis_d(option='viridis',) +
+  labs(title = 'Municipios de mayor población',
+       subtitle = 'Por provincia') +
+  geom_vline(xintercept = 4e05, linetype = 'dashed', color = 'darkgray', size=1)
+
+pprovincias
+```
+
+Donde podemos observar cómo las islas principales, las cuales contienen la capital de dicha provincia, son las que contienen los municipio más poblados.
+
+```{r echo=FALSE}
+p1 = ggplot(df[df$long < 4.85e05 & df$long > 3e05,], aes(x=long, y=lat, group=group, fill=as.factor(pos))) +
+  geom_polygon(color='white', size=0.001) +
+  theme(
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    plot.title = element_text(size=18, 
+                                  hjust=0.5, 
+                                  color='darkblue'),
+    plot.subtitle = element_text(size=12,
+                                  hjust=0.5),
+    panel.grid.major.y = element_line(color = 'azure3'),
+    panel.grid.major.x = element_line(color = 'azure3'),
+    panel.grid.minor.y = element_line(color = 'azure2'),
+    panel.grid.minor.x = element_line(color = 'azure2')
+  ) + 
+  scale_fill_viridis_d(option='viridis', name='Posición') +
+  labs(title = 'Municipios de mayor población',
+       subtitle = 'Por provincia, en las islas principales') +
+  geom_vline(xintercept = 4e05, linetype = 'dashed', color = 'darkgray', size=1)
+
+p1
+```
+
+Pese a que el color pueda no ser el mejor atributo, pues a medida que crezca el número de municipios a comparar más dificil será para el ojo humano diferenciar distintos tonos, es muy bueno para poder hacernos una idea de forma visual sobre los puntos de aglomeración de población en el archipiélago.

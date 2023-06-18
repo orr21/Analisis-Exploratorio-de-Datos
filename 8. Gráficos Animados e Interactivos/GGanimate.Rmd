@@ -1,0 +1,235 @@
+---
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(knitr.kable.NA = '')
+```
+
+### Cargamos las librerías
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(gganimate)
+library(gifski)
+library(knitr)
+library(viridis)
+```
+
+### Fuente de datos:
+
+La información utilizada en este trabajo ha sido extraída de [OurWorldInData](https://ourworldindata.org/grapher/population), una plataforma en línea que proporciona una amplia variedad de datos y visualizaciones sobre el estado del mundo y cómo ha evolucionado a lo largo del tiempo.
+
+En cuanto a la calidad de los datos, cabe destacar que [OurWorldInData](https://ourworldindata.org/grapher/population) es una fuente reconocida y respetada, respaldada por la Universidad de Oxford y que cuenta con un equipo de investigadores y expertos en datos que trabajan arduamente para recopilar, verificar y analizar los datos de diversas fuentes para garantizar su precisión. Además, los datos son completamente transparentes y la sección de *SOURCES* dentro de la página web proporciona información detallada sobre la fuente de los datos, la metodología utilizada para recopilarlos y cualquier limitación que pueda afectar la precisión de los resultados.
+
+Con respecto a la extracción de datos, es importante mencionar que la plataforma puede presentar algunas dificultades, ya que no es fácilmente accesible. No se encontró ninguna opción de filtrado de datos para la descarga, por lo que fue necesario descargar todos los datos de una vez. Para descargar los datos, se debe seleccionar la pestaña *DOWNLOAD* y proceder a la descarga masiva de los mismos.
+
+### Cargamos los datos
+
+```{r}
+population <- read.csv("./datos/population.csv")
+```
+
+```{r echo=FALSE}
+kable(head(population))
+```
+
+### Tratamiento de datos
+
+El conjunto de datos descargado contiene información histórica de la población de diferentes entidades en el mundo.
+
+```{r message=FALSE, warning=FALSE}
+population <- population %>% 
+  rename(Population = "Population..historical.estimates.") %>%
+  filter(Year >= 1950) %>%
+  filter(Entity %in% c("North America", "South America", "Asia", "Oceania",
+                       "Africa","Europe")) %>%
+   mutate(Entity = ifelse(Entity %in% c("North America", "South America"), "America", Entity)) %>%
+  group_by(Year, Entity) %>%
+  summarize(Population = sum(Population))
+```
+
+Para su análisis, se llevó a cabo un preprocesamiento de los datos que implicó la eliminación de registros anteriores al año 1950 para asegurar la calidad de los datos, y la selección de entidades de interés (Norteamérica, Sudamérica, Asia, Oceanía, África y Europa). Además, se unificó la categoría de América para incluir tanto Norteamérica como Sudamérica. Finalmente, se agruparon los datos por año y entidad y se calculó la suma de la población para cada combinación. Este conjunto de datos procesado se utilizó para crear visualizaciones y animaciones que permiten observar la evolución temporal de la población en cada continente.
+
+```{r message=FALSE, warning=FALSE}
+kable(summary(population))
+```
+
+### Visualizaciones animadas
+
+#### Geom_line
+
+Un gráfico de líneas puede ser utilizado para mostrar la evolución de la población de un continente específico a lo largo del tiempo. La línea representaría la población de ese continente y el eje x representaría el tiempo.
+
+```{r include=FALSE}
+# Código para solventar problema con el transition_reveal tras la versión 1.0.8 de gganimate, donde algunos valores de las filas se borraban.
+
+TransitionReveal2 <- ggproto(
+  "TransitionReveal2", TransitionReveal,
+  expand_panel = function (self, data, type, id, match, ease, enter, exit, params, 
+                           layer_index) {    
+    row_vars <- self$get_row_vars(data)
+    if (is.null(row_vars)) 
+      return(data)
+    data$group <- paste0(row_vars$before, row_vars$after)
+    time <- as.numeric(row_vars$along)
+    all_frames <- switch(type,
+                         point = tweenr:::tween_along(data, ease, params$nframes, 
+                                                      !!time, group, c(1, params$nframes),
+                                                      FALSE, params$keep_last),
+                         path = tweenr:::tween_along(data, ease, params$nframes, 
+                                                     !!time, group, c(1, params$nframes),
+                                                     TRUE, params$keep_last),
+                         polygon = tweenr:::tween_along(data, ease, params$nframes, 
+                                                        !!time, group, c(1, params$nframes),
+                                                        TRUE, params$keep_last),
+                         stop(type, " layers not currently supported by transition_reveal", 
+                              call. = FALSE))
+    all_frames$group <- paste0(all_frames$group, "<", all_frames$.frame, ">")
+    all_frames$.frame <- NULL
+    
+    # added step to filter out transition rows with duplicated positions
+    all_frames <- all_frames %>%
+      filter(!(.phase == "transition" &
+                 abs(x - lag(x)) <= sqrt(.Machine$double.eps) &
+                 abs(y - lag(y)) <= sqrt(.Machine$double.eps)))
+    
+    all_frames
+  }
+)
+
+transition_reveal2 <- function (along, range = NULL, keep_last = TRUE) {
+  along_quo <- enquo(along)
+  gganimate:::require_quo(along_quo, "along")
+  ggproto(NULL, TransitionReveal2, # instead of TransitionReveal
+          params = list(along_quo = along_quo, range = range, keep_last = keep_last))
+}
+```
+
+```{r echo=FALSE, fig.align='center', message=FALSE, warning=FALSE}
+population_plot_line <- population %>% 
+  ggplot(aes(Year,Population)) + 
+  geom_point(aes(Year, Population, color = Entity)) +
+  geom_line(aes(color = Entity),  linetype=1) +
+  geom_text(aes(label = as.factor(Year), x = Year, y = 0), 
+            hjust = 0.5, vjust = 1, size = 5, show.legend = FALSE, color = "grey") +
+  scale_x_continuous(breaks = seq(1950,2021,10), expand = c(0,0,0.1,0)) +
+  scale_color_viridis(name = "Continente", discrete = TRUE, option = "viridis") +
+  theme_minimal() +
+  theme(
+    axis.line=element_blank(),
+    panel.background=element_blank(),
+    panel.border=element_blank(),
+    panel.grid.major=element_blank(),
+    panel.grid.minor=element_blank(),
+    panel.grid.major.x = element_line( size=.1, color="grey" ),
+    panel.grid.minor.x = element_line( size=.1, color="grey" ),
+    plot.title=element_text(hjust=0.5, face="bold", colour="black", vjust=-1),
+    plot.caption =element_text(hjust=0.5, face="italic", color="grey"),
+    plot.background=element_blank(),
+    plot.margin = margin(2,2, 2, 4, "cm"),
+    axis.title.x = element_text(margin = margin(t = 15))
+  )+
+  transition_reveal2(Year) + 
+  labs(x = "Años", y = "Población", 
+       title = "Población por continente desde 1950 a 2021",        
+       caption  = "Data Source: OurWorldInData")  +
+  view_follow()
+
+animate(
+  population_plot_line,
+  width = 700,
+  height = 432,
+  fps = 25,
+  duration = 15,
+  renderer = gifski_renderer(),
+  end_pause = 100
+)
+```
+
+Entre los detalles a destacar, cabe mencionar la elección de utilizar la función [transition_reveal2 ](https://stackoverflow.com/questions/64069501/arrow-pointing-wrong-direction-using-gganimate/64135523#64135523) un workaround de la comunidad basado en la función transition_reveal de ggplot2 para arreglar algunos [errores](https://github.com/thomasp85/gganimate/issues/480). Con ella pretendemos animar la gráfica de modo que se revele gradualmente la evolución de la población de cada continente en el tiempo. En nuestro enfoque, empleamos la función geom_point para resaltar los datos de la población en cada año y en cada continente, lo que ayuda a llamar la atención del espectador. Además, la función geom_line se utiliza para mostrar la tendencia de la población a lo largo del tiempo.
+
+Utilizamos la función geom_text para agregar información adicional a la gráfica, como el año correspondiente a cada punto de datos, lo que facilita la identificación rápida de los valores específicos de la población en cada momento. En cuanto a la paleta de colores, decidimos utilizar la paleta de colores viridis para identificar claramente cada continente en la gráfica. Esto también ayuda a hacer la gráfica más fácil de entender para las personas daltónicas.
+
+En cuanto a la limpieza de la visualización, eliminamos los elementos innecesarios, como las líneas de los ejes y la leyenda. También utilizamos la función theme_minimal para eliminar los elementos de fondo innecesarios y crear una apariencia limpia y simple.
+
+#### Geom_bar - Geom_tile
+
+**`geom_bar`** es muy útil para mostrar la evolución de la población de varios continentes a lo largo del tiempo. Cada barra representa un año y las diferentes secciones de la barra representan las poblaciones de cada continente en ese año. Aunque en este caso, se utilizó **`geom_tile`** en lugar de **`geom_bar`** debido a que **`geom_tile`** es una mejor opción para representar valores continuos como la población. **`geom_bar`** funciona mejor para datos discretos, como contar el número de personas en diferentes categorías. En el gráfico de barras apiladas queremos crear, cada barra representa la población total de una región en un año específico, y cada sección de la barra representa la población de un subgrupo (por ejemplo, un continente). **`geom_bar`** funciona bien para mostrar la distribución de la población de un año específico, pero no es ideal para mostrar la evolución de la población a lo largo del tiempo, al menos, como a nosotros nos gustaría. **`geom_tile`** nos permite representar la población continua en una cuadrícula, lo que facilita la comparación entre diferentes regiones y años.
+
+```{r}
+population_formatted <- population %>%
+  group_by(Year) %>% # The * 1 makes it possible to have non-integer ranks while sliding
+  mutate(rank = rank(-Population),
+         Value_lbl = paste0(" ",round(Population/1e6))) %>%
+  group_by(Entity) %>%
+  ungroup()
+```
+
+Este código procesa nuestro conjunto de datos sobre la población para crear un preprocesado que se utilizará para la siguiente visualización. En concreto, se calcula el ranking de los continentes por población dentro de cada año, y se crea una etiqueta con la población redondeada en millones.
+
+Este preprocesado de los datos es necesario para poder animar la siguiente gráfica de manera efectiva.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+population_plot_bar = population_formatted %>%
+  ggplot(aes(rank, group = Entity, fill = as.factor(Entity), color = as.factor(Entity))) +
+  geom_tile(aes(y = Population/2,
+                height = Population,
+                width = 0.9), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(Entity, " ")), vjust = 0.2, hjust = 1) +
+  geom_text(aes(y=Population,label = Value_lbl, hjust=0))  +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_x_reverse() +
+  scale_fill_viridis(discrete = TRUE, option = "viridis", end = 0.8) +
+  scale_color_viridis(discrete = TRUE, option = "viridis", end = 0.8) +
+  guides(color = FALSE, fill = FALSE) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.position="none",
+        panel.background=element_blank(),
+        panel.border=element_blank(),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.grid.major.x = element_line( size=.1, color="grey" ),
+        panel.grid.minor.x = element_line( size=.1, color="grey" ),
+        plot.title=element_text(hjust=0.5, face="bold", colour="black", vjust=-1),
+        plot.subtitle=element_text(hjust=0.5, face="italic", color="black"),
+        plot.caption =element_text(hjust=0.5, face="italic", color="grey"),
+        plot.background=element_blank(),
+       plot.margin = margin(2,2, 2, 4, "cm")) + 
+  transition_states(Year, transition_length = 1, state_length = 1, wrap = FALSE) +
+  view_follow(fixed_x = TRUE)  +
+  labs(title = 'Población por continente',
+       subtitle  =  "Años : {closest_state}",
+       caption  = "Población en millones | Data Source: OurWorldInData")
+
+animate(
+  population_plot_bar,
+  width = 700,
+  height = 432,
+  fps = 25,
+  duration = 15,
+  renderer = gifski_renderer(),
+  end_pause = 100
+)
+```
+
+En esta visualización, decidimos utilizar la función transition_states de gganimate para crear una animación que muestra la evolución de la población de diferentes continentes a lo largo del tiempo. Con esta función, podemos resaltar las tendencias y los cambios drásticos en la población de cada región de una manera clara y efectiva.
+
+Decidimos utilizar diferentes colores para cada continente para ayudar a identificar rápidamente las poblaciones de cada región. También utilizamos la función geom_text para agregar información adicional, como el nombre de cada continente y la etiqueta del valor de la población, lo que hace que la gráfica sea más informativa y fácil de entender.
+
+Eliminamos elementos innecesarios, como las líneas de los ejes y la leyenda, lo que hace que la visualización sea más limpia y fácil de entender. Además, elegimos la paleta de colores viridis para representar valores continuos, ya que es perceptualmente uniforme y fácil de interpretar. Esta paleta de colores también es amigable para las personas daltónicas.
+
+### Bibliografía
+[OurWorldInData](https://ourworldindata.org/grapher/population)
+
+[transition_reveal2 ](https://stackoverflow.com/questions/64069501/arrow-pointing-wrong-direction-using-gganimate/64135523#64135523)
+
+[¿Por qué transition_reveal2?](https://github.com/thomasp85/gganimate/issues/480)
