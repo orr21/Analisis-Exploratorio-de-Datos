@@ -5,11 +5,13 @@ Este repositorio de GitHub contiene todos los trabajos realizados para la asigna
 Los trabajos en este repositorio se implementaron utilizando los siguientes lenguajes de programación:
 
 R
+
 Python
 #### Entornos de Desarrollo
 Los entornos de desarrollo utilizados para la realización de los trabajos fueron:
 
 JupyterNotebook
+
 RStudio
 #### Estructura del Repositorio
 El repositorio está organizado en las siguientes carpetas:
