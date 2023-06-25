@@ -16,7 +16,7 @@ RStudio
 #### Estructura del Repositorio
 El repositorio está organizado en las siguientes carpetas:
 
-1-2. Tutorial Pandas: Este trabajo consiste en un tutorial introductorio al uso de la biblioteca Pandas de Python para el análisis de datos. Proporciona una guía paso a paso y ejemplos prácticos para familiarizarse con las funcionalidades de Pandas. Desafortunadamente, debido a las restricciones de tamaño de archivo, no se pudo subir los datos asociado al tutorial 2. Dejo aquí un link de descarga. [LINK](google.es)
+1-2. Tutorial Pandas: Este trabajo consiste en un tutorial introductorio al uso de la biblioteca Pandas de Python para el análisis de datos. Proporciona una guía paso a paso y ejemplos prácticos para familiarizarse con las funcionalidades de Pandas. Desafortunadamente, debido a las restricciones de tamaño de archivo, no se pudo subir los datos asociado al tutorial 2. Dejo aquí un link de descarga. [LINK](https://mega.nz/file/Z2k0wTYT#GiX-2dj5GfCRI-G6T4LQTPJCkMFJEd_hvwW5RN7GtuQ)
 
 3. Inicializar Entorno: En esta carpeta se encuentra un archivo **.yml** con todo lo necesario para configurar y preparar el entorno de desarrollo para el análisis de datos, incluyendo la instalación de bibliotecas y la configuración de Python.
 
