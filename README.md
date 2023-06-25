@@ -26,11 +26,11 @@ El repositorio está organizado en las siguientes carpetas:
 
 6. Transformación de Características: En este directorio se aborda la transformación de características en el análisis de datos. Se presentan técnicas y métodos para manipular y transformar los datos, preparándolos para su análisis y visualización.
 
-7. Combinar Datos, Mapas y Join: En esta carpeta se encuentra información sobre cómo combinar datos de diferentes fuentes, realizar operaciones de join y crear visualizaciones geográficas utilizando mapas. Desafortunadamente, debido a las restricciones de tamaño de archivo, no se pudo subir los datos asociado a esta carpeta. Dejo aquí un link de descarga. [LINK](google.es)
+7. Combinar Datos, Mapas y Join: En esta carpeta se encuentra información sobre cómo combinar datos de diferentes fuentes, realizar operaciones de join y crear visualizaciones geográficas utilizando mapas. Desafortunadamente, debido a las restricciones de tamaño de archivo, no se pudo subir los datos asociado a esta carpeta. Dejo aquí un link de descarga. [LINK](https://mega.nz/file/Uu9WVKzA#Sp2BxTXo49PG0PgUuvoOyXdwzEBJtCSOyXvMPuaKrtI)
 
 8. Gráficos Animados e Interactivos: Aquí se presentan trabajos relacionados con la creación de gráficos animados e interactivos utilizando herramientas como Plotly y gganimate en R. Estas visualizaciones ayudan a presentar los datos de una manera más dinámica y atractiva.
 
-9. Trabajo Final: En esta carpeta se encuentra el proyecto final de la asignatura, donde se aplican todas las técnicas y conceptos aprendidos durante el curso. Se utiliza un conjunto de datos real para realizar un análisis completo, desde la limpieza y transformación de datos hasta la visualización y el análisis exploratorio. Desafortunadamente, debido a las restricciones de tamaño de archivo, no se pudo subir los datos asociado a esta carpeta. Dejo aquí un link de descarga. [LINK](google.es)
+9. Trabajo Final: En esta carpeta se encuentra el proyecto final de la asignatura, donde se aplican todas las técnicas y conceptos aprendidos durante el curso. Se utiliza un conjunto de datos real para realizar un análisis completo, desde la limpieza y transformación de datos hasta la visualización y el análisis exploratorio. Desafortunadamente, debido a las restricciones de tamaño de archivo, no se pudo subir los datos asociado a esta carpeta. Dejo aquí un link de descarga. [LINK](https://mega.nz/file/Jv81UayL#w2djjXW36WR1vB9dcnCH8U9Mhq-0OoLAsI3YouGJw4A)
 
 ### Notas
 Sino se desean descargar los datos, de todas formas en cada carpeta se proporciona una descripción general de los trabajos y se detalla el proceso y las técnicas utilizadas, además de algunos informes y el código fuente.
